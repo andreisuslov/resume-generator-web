@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Generator</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- ===== WIZARD VIEW ===== -->
+<div id="wizard-view">
+    <div class="wizard-card">
+        <div class="wizard-header">
+            <h1 class="wizard-title">Resume Generator</h1>
+            <p class="wizard-subtitle">Create a professional resume in minutes</p>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="progress-bar">
+            <div class="progress-steps">
+                <div class="progress-step active" data-step="1"><span>1</span><label>Info</label></div>
+                <div class="progress-line"></div>
+                <div class="progress-step" data-step="2"><span>2</span><label>Work</label></div>
+                <div class="progress-line"></div>
+                <div class="progress-step" data-step="3"><span>3</span><label>Education</label></div>
+                <div class="progress-line"></div>
+                <div class="progress-step" data-step="4"><span>4</span><label>Skills</label></div>
+                <div class="progress-line"></div>
+                <div class="progress-step" data-step="5"><span>5</span><label>Preview</label></div>
+            </div>
+        </div>
+
+        <!-- Step 1: Personal Info -->
+        <div class="step active" data-step="1">
+            <h2>Personal Information</h2>
+            <p class="step-desc">Let's start with your basic contact details.</p>
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label for="name">Full Name *</label>
+                    <input type="text" id="name" placeholder="e.g. Jane Smith" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email *</label>
+                    <input type="email" id="email" placeholder="e.g. jane@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="phone">Phone</label>
+                    <input type="tel" id="phone" placeholder="e.g. (555) 123-4567">
+                </div>
+                <div class="form-group">
+                    <label for="location">Location</label>
+                    <input type="text" id="location" placeholder="e.g. Boston, MA">
+                </div>
+                <div class="form-group">
+                    <label for="linkedin">LinkedIn URL</label>
+                    <input type="url" id="linkedin" placeholder="e.g. https://linkedin.com/in/janesmith">
+                </div>
+                <div class="form-group full-width">
+                    <label for="github">GitHub URL</label>
+                    <input type="url" id="github" placeholder="e.g. https://github.com/janesmith">
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Work Experience -->
+        <div class="step" data-step="2">
+            <h2>Work Experience</h2>
+            <p class="step-desc">Add your jobs, starting with the most recent. Each bullet point should start with a strong action verb.</p>
+            <div id="jobs-container">
+                <!-- Dynamic job entries go here -->
+            </div>
+            <button type="button" class="btn-add" id="add-job">+ Add a Position</button>
+        </div>
+
+        <!-- Step 3: Education -->
+        <div class="step" data-step="3">
+            <h2>Education</h2>
+            <p class="step-desc">Add your degrees, certifications, or relevant coursework.</p>
+            <div id="education-container">
+                <!-- Dynamic education entries go here -->
+            </div>
+            <button type="button" class="btn-add" id="add-education">+ Add Education</button>
+        </div>
+
+        <!-- Step 4: Skills -->
+        <div class="step" data-step="4">
+            <h2>Skills &amp; Certifications</h2>
+            <p class="step-desc">List your technical skills, professional abilities, and languages. Separate items with commas.</p>
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label for="technologies">Technologies / Tools</label>
+                    <textarea id="technologies" rows="3" placeholder="e.g. Python, JavaScript, Docker, AWS, Git, SQL"></textarea>
+                    <span class="hint">Separate with commas</span>
+                </div>
+                <div class="form-group full-width">
+                    <label for="hard-skills">Professional Skills</label>
+                    <textarea id="hard-skills" rows="3" placeholder="e.g. Project Management, Data Analysis, Technical Writing"></textarea>
+                    <span class="hint">Separate with commas</span>
+                </div>
+                <div class="form-group full-width">
+                    <label for="language-skills">Languages</label>
+                    <input type="text" id="language-skills" placeholder="e.g. Fluent in English and Spanish">
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 5: Preview & Download -->
+        <div class="step" data-step="5">
+            <h2>Your Resume</h2>
+            <p class="step-desc">Here's a preview. Click "Download PDF" when you're happy with it.</p>
+            <div class="preview-actions">
+                <button type="button" class="btn-primary" id="download-pdf-btn">Download PDF</button>
+                <button type="button" class="btn-secondary" id="print-btn">Print / Save as PDF</button>
+            </div>
+            <div id="resume-preview-wrapper">
+                <!-- Scaled preview of the resume -->
+            </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="nav-buttons">
+            <button type="button" class="btn-secondary" id="prev-btn" style="display:none">Back</button>
+            <div class="nav-spacer"></div>
+            <button type="button" class="btn-text" id="load-example-btn">Load Example</button>
+            <button type="button" class="btn-primary" id="next-btn">Next</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== RESUME RENDER TARGET (hidden, used for PDF generation) ===== -->
+<div id="resume-render-target" style="position:absolute;left:-9999px;top:0;">
+    <div id="resume-page">
+        <div class="rp-padding-element"></div>
+        <div class="rp-container" id="rp-resume-container">
+            <div class="rp-header">
+                <h1 id="rp-name"></h1>
+                <div class="rp-contact-info" id="rp-contact-info"></div>
+            </div>
+
+            <div id="rp-work-section" style="display:none">
+                <div class="rp-section-title">WORK EXPERIENCE</div>
+                <div id="rp-work-container"></div>
+            </div>
+
+            <div id="rp-education-section" style="display:none">
+                <div class="rp-section-title">EDUCATION</div>
+                <div id="rp-education-container"></div>
+            </div>
+
+            <div id="rp-skills-section" style="display:none">
+                <div class="rp-section-title">SKILLS &amp; CERTIFICATIONS</div>
+                <table class="rp-skills-table">
+                    <tbody id="rp-skills-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="rp-padding-element"></div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
