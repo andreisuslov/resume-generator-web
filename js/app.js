@@ -2,22 +2,23 @@
 // State
 // ============================================================
 let currentStep = 1;
-const totalSteps = 5;
+const totalSteps = 4;
 let jobCounter = 0;
 let eduCounter = 0;
+let lastResumeData = null; // Stores the data used to render the current preview
+let lastYamlSource = null; // Tracks where preview came from: 'wizard', 'editor', 'ai'
+let originalYamlForDiff = null; // Base YAML before AI modification
+let diffMode = false;            // Whether diff view is active
+let rediffTimeout = null;        // Debounce timer for re-diffing on edit
 
 // ============================================================
-// HTML Escaping Utilities
+// View Navigation
 // ============================================================
-function escapeHtml(str) {
-    if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-}
-
-function esc(val) {
-    return escapeHtml(val || '');
+function showView(viewId) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    const target = document.getElementById(viewId);
+    if (target) target.classList.add('active');
+    window.scrollTo(0, 0);
 }
 
 // ============================================================
@@ -27,28 +28,172 @@ document.addEventListener('DOMContentLoaded', () => {
     addJobEntry();
     addEducationEntry();
 
+    // Wizard navigation
     document.getElementById('next-btn').addEventListener('click', nextStep);
     document.getElementById('prev-btn').addEventListener('click', prevStep);
     document.getElementById('add-job').addEventListener('click', () => addJobEntry());
     document.getElementById('add-education').addEventListener('click', () => addEducationEntry());
     document.getElementById('load-example-btn').addEventListener('click', loadExample);
+    document.getElementById('home-from-wizard-btn').addEventListener('click', () => showView('home-view'));
+
+    // Home view path cards
+    document.getElementById('path-upload').addEventListener('click', () => {
+        document.getElementById('file-input').click();
+    });
+    document.getElementById('path-wizard').addEventListener('click', () => {
+        showView('wizard-view');
+    });
+    document.getElementById('path-ai').addEventListener('click', () => {
+        showView('ai-view');
+    });
+
+    // Home drop zone
+    setupDropZone('drop-zone', 'file-input', handleYamlFile);
+
+    // AI view drop zone
+    setupDropZone('ai-drop-zone', 'ai-file-input', handleAiYamlFile);
+
+    // Preview actions
     document.getElementById('download-pdf-btn').addEventListener('click', downloadPDF);
     document.getElementById('print-btn').addEventListener('click', printResume);
+    document.getElementById('edit-yaml-btn').addEventListener('click', () => {
+        if (lastResumeData) {
+            const currentYaml = dataToYaml(lastResumeData);
+            if (originalYamlForDiff && lastYamlSource === 'ai') {
+                showView('editor-view');
+                enterDiffMode(originalYamlForDiff, currentYaml);
+                return;
+            }
+            document.getElementById('yaml-editor').value = currentYaml;
+            lastYamlSource = 'editor';
+        }
+        showView('editor-view');
+    });
+    document.getElementById('start-over-btn').addEventListener('click', () => {
+        showView('home-view');
+    });
+
+    // Editor actions
+    document.getElementById('editor-back-btn').addEventListener('click', () => {
+        if (diffMode) exitDiffMode(document.getElementById('diff-right-editor').value);
+        showView('home-view');
+    });
+    document.getElementById('save-yaml-btn').addEventListener('click', saveYamlFile);
+    document.getElementById('generate-from-yaml-btn').addEventListener('click', generateFromEditor);
+
+    // Diff mode actions
+    document.getElementById('accept-changes-btn').addEventListener('click', () => {
+        const value = document.getElementById('diff-right-editor').value;
+        exitDiffMode(value);
+        lastYamlSource = 'editor';
+    });
+    document.getElementById('revert-changes-btn').addEventListener('click', () => {
+        exitDiffMode(originalYamlForDiff);
+        lastYamlSource = 'editor';
+    });
+
+    // AI actions
+    document.getElementById('ai-back-btn').addEventListener('click', () => showView('home-view'));
+    document.getElementById('generate-ai-btn').addEventListener('click', generateAiResume);
+
+    // Restore OpenAI key from localStorage
+    const savedKey = localStorage.getItem('openai-api-key');
+    if (savedKey) document.getElementById('openai-key').value = savedKey;
+
+    // Save key on change and fetch models
+    document.getElementById('openai-key').addEventListener('change', (e) => {
+        const key = e.target.value.trim();
+        localStorage.setItem('openai-api-key', key);
+        if (key) fetchOpenAiModels(key);
+    });
+
+    // Fetch models if we already have a saved key
+    if (savedKey) fetchOpenAiModels(savedKey);
+
+    // Restore saved model selection
+    const savedModel = localStorage.getItem('openai-model');
+    if (savedModel) document.getElementById('ai-model').value = savedModel;
+    document.getElementById('ai-model').addEventListener('change', (e) => {
+        localStorage.setItem('openai-model', e.target.value);
+    });
 
     restoreFromLocalStorage();
 });
 
 // ============================================================
-// Step Navigation
+// Drop Zone Setup
+// ============================================================
+function setupDropZone(zoneId, inputId, handler) {
+    const zone = document.getElementById(zoneId);
+    const input = document.getElementById(inputId);
+
+    zone.addEventListener('click', () => input.click());
+
+    zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.classList.add('drag-over');
+    });
+
+    zone.addEventListener('dragleave', () => {
+        zone.classList.remove('drag-over');
+    });
+
+    zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) handler(file);
+    });
+
+    input.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) handler(file);
+        input.value = '';
+    });
+}
+
+// ============================================================
+// YAML File Handling
+// ============================================================
+function handleYamlFile(file) {
+    if (!file.name.match(/\.(yaml|yml)$/i)) {
+        alert('Please select a .yaml or .yml file.');
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const text = e.target.result;
+        try {
+            jsyaml.load(text);
+            document.getElementById('yaml-editor').value = text;
+            lastYamlSource = 'editor';
+            showView('editor-view');
+        } catch (err) {
+            alert('Invalid YAML file: ' + err.message);
+        }
+    };
+    reader.readAsText(file);
+}
+
+function handleAiYamlFile(file) {
+    if (!file.name.match(/\.(yaml|yml)$/i)) {
+        alert('Please select a .yaml or .yml file.');
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        document.getElementById('ai-base-yaml').value = e.target.result;
+    };
+    reader.readAsText(file);
+}
+
+// ============================================================
+// Step Navigation (Wizard)
 // ============================================================
 function goToStep(step) {
     if (step < 1 || step > totalSteps) return;
 
     saveToLocalStorage();
-
-    if (step === totalSteps) {
-        renderResumePreview();
-    }
 
     document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
     const targetStep = document.querySelector(`.step[data-step="${step}"]`);
@@ -67,7 +212,15 @@ function goToStep(step) {
     });
 
     document.getElementById('prev-btn').style.display = step === 1 ? 'none' : '';
-    document.getElementById('next-btn').style.display = step === totalSteps ? 'none' : '';
+
+    // On last step, change Next to "Preview Resume"
+    const nextBtn = document.getElementById('next-btn');
+    if (step === totalSteps) {
+        nextBtn.textContent = 'Preview Resume';
+    } else {
+        nextBtn.textContent = 'Next';
+    }
+
     document.getElementById('load-example-btn').style.display = step === totalSteps ? 'none' : '';
 
     currentStep = step;
@@ -75,6 +228,16 @@ function goToStep(step) {
 
 function nextStep() {
     if (currentStep === 1 && !validatePersonalInfo()) return;
+
+    if (currentStep === totalSteps) {
+        // Generate preview from wizard data
+        const data = collectFormData();
+        lastResumeData = data;
+        lastYamlSource = 'wizard';
+        renderResumeFromData(data);
+        return;
+    }
+
     goToStep(currentStep + 1);
 }
 
@@ -207,7 +370,7 @@ function removeEntry(id) {
 }
 
 // ============================================================
-// Collect Form Data
+// Collect Form Data (from wizard)
 // ============================================================
 function collectFormData() {
     const data = {
@@ -259,11 +422,68 @@ function collectFormData() {
 }
 
 // ============================================================
-// Render Resume into the Hidden Target (using safe DOM methods)
+// Data ↔ YAML Conversion
 // ============================================================
-function renderResumePreview() {
-    const data = collectFormData();
+function dataToYaml(data) {
+    return jsyaml.dump(data, { lineWidth: -1, noRefs: true, sortKeys: false });
+}
 
+function yamlToData(yamlStr) {
+    const data = jsyaml.load(yamlStr);
+    if (!data || typeof data !== 'object') {
+        throw new Error('YAML must contain an object with resume fields.');
+    }
+    // Normalize: ensure expected structure
+    data.name = data.name || '';
+    data.contact = data.contact || {};
+    data.work_experience = data.work_experience || [];
+    data.education = data.education || [];
+    data.skills = data.skills || {};
+    // Ensure responsibilities are arrays
+    data.work_experience.forEach(job => {
+        if (typeof job.responsibilities === 'string') {
+            job.responsibilities = job.responsibilities.split('\n').map(s => s.trim()).filter(Boolean);
+        }
+        job.responsibilities = job.responsibilities || [];
+    });
+    return data;
+}
+
+// ============================================================
+// Render Resume from Data Object
+// ============================================================
+function renderResumeFromData(data) {
+    lastResumeData = data;
+
+    const renderTarget = document.getElementById('resume-render-target');
+
+    // Temporarily make visible for accurate measurement
+    renderTarget.style.position = 'static';
+    renderTarget.style.left = 'auto';
+
+    populateResumeDOM(data);
+
+    // Use rAF to ensure browser has laid out the element before measuring
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            adjustContentToPage();
+
+            // Show the preview
+            showView('preview-view');
+
+            // Need another rAF to ensure preview-view is visible and has width
+            requestAnimationFrame(() => {
+                showPreview();
+
+                // Hide render target again
+                renderTarget.style.position = 'absolute';
+                renderTarget.style.left = '-9999px';
+            });
+        });
+    });
+}
+
+function populateResumeDOM(data) {
     // --- Header ---
     document.getElementById('rp-name').textContent = data.name;
 
@@ -318,7 +538,7 @@ function renderResumePreview() {
     const skillsTbody = document.getElementById('rp-skills-tbody');
     const skillsSection = document.getElementById('rp-skills-section');
     skillsTbody.textContent = '';
-    const hasSkills = Object.keys(data.skills).length > 0;
+    const hasSkills = data.skills && Object.keys(data.skills).length > 0;
     if (hasSkills) {
         skillsSection.style.display = 'block';
         const formatTitle = key => key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -340,9 +560,6 @@ function renderResumePreview() {
     } else {
         skillsSection.style.display = 'none';
     }
-
-    adjustContentToPage();
-    showPreview();
 }
 
 function createResumeJobElement(job) {
@@ -381,7 +598,7 @@ function createResumeJobElement(job) {
         tagLi.appendChild(em);
         ul.appendChild(tagLi);
     }
-    job.responsibilities.forEach(r => {
+    (job.responsibilities || []).forEach(r => {
         const li = document.createElement('li');
         li.className = 'js-resizable-text';
         li.textContent = r;
@@ -405,7 +622,9 @@ function createResumeEduElement(edu) {
     const b = document.createElement('b');
     b.textContent = edu.institution;
     schoolSpan.appendChild(b);
-    schoolSpan.appendChild(document.createTextNode('; ' + edu.location));
+    if (edu.location) {
+        schoolSpan.appendChild(document.createTextNode('; ' + edu.location));
+    }
     const dateSpan = document.createElement('span');
     dateSpan.className = 'rp-date';
     dateSpan.textContent = edu.graduation_date;
@@ -422,7 +641,7 @@ function createResumeEduElement(edu) {
 }
 
 // ============================================================
-// Auto-fit content to page (from original project)
+// Auto-fit content to page
 // ============================================================
 function adjustContentToPage() {
     const container = document.getElementById('rp-resume-container');
@@ -430,7 +649,7 @@ function adjustContentToPage() {
 
     const resizableElements = Array.from(container.querySelectorAll('.js-resizable-text'));
     const targetHeight = container.clientHeight;
-    if (resizableElements.length === 0) return;
+    if (resizableElements.length === 0 || targetHeight === 0) return;
 
     const initialFontSizes = resizableElements.map(el => {
         el.style.fontSize = '';
@@ -444,7 +663,7 @@ function adjustContentToPage() {
     };
 
     let minScale = 0.1;
-    let maxScale = 3.0;
+    let maxScale = 1.0;
     let bestScale = 1.0;
 
     for (let i = 0; i < 10; i++) {
@@ -462,7 +681,7 @@ function adjustContentToPage() {
 }
 
 // ============================================================
-// Show the Preview (scaled to fit the wizard card)
+// Show the Preview (scaled to fit the preview container)
 // ============================================================
 function showPreview() {
     const wrapper = document.getElementById('resume-preview-wrapper');
@@ -473,30 +692,242 @@ function showPreview() {
 
     const wrapperWidth = wrapper.clientWidth - 48;
     const pageWidth = 8.5 * 96;
+    const pageHeight = 11 * 96;
     const scale = Math.min(wrapperWidth / pageWidth, 1);
 
     const scaler = document.createElement('div');
     scaler.className = 'resume-preview-scaler';
     scaler.style.transform = `scale(${scale})`;
-    scaler.style.width = `${8.5 * 96}px`;
-    scaler.style.height = `${11 * 96}px`;
+    scaler.style.transformOrigin = 'top center';
+    scaler.style.width = `${pageWidth}px`;
+    scaler.style.height = `${pageHeight}px`;
+    // Collapse extra layout space so wrapper sizes to the visual height
+    scaler.style.marginBottom = `-${pageHeight - pageHeight * scale}px`;
     scaler.appendChild(clone);
 
     wrapper.textContent = '';
     wrapper.appendChild(scaler);
+
+    // Let wrapper size naturally from its content
+    wrapper.style.height = '';
+}
+
+// ============================================================
+// Generate from YAML Editor
+// ============================================================
+function generateFromEditor() {
+    const editorError = document.getElementById('editor-error');
+    const yamlText = diffMode
+        ? document.getElementById('diff-right-editor').value.trim()
+        : document.getElementById('yaml-editor').value.trim();
+
+    editorError.style.display = 'none';
+
+    if (!yamlText) {
+        editorError.textContent = 'Please enter some YAML content.';
+        editorError.style.display = 'block';
+        return;
+    }
+
+    try {
+        const data = yamlToData(yamlText);
+        if (!data.name) {
+            editorError.textContent = 'YAML must contain a "name" field.';
+            editorError.style.display = 'block';
+            return;
+        }
+        lastYamlSource = 'editor';
+        renderResumeFromData(data);
+    } catch (err) {
+        editorError.textContent = 'YAML parsing error: ' + err.message;
+        editorError.style.display = 'block';
+    }
+}
+
+// ============================================================
+// Save YAML File
+// ============================================================
+function saveYamlFile() {
+    const yamlText = diffMode
+        ? document.getElementById('diff-right-editor').value
+        : document.getElementById('yaml-editor').value;
+    const blob = new Blob([yamlText], { type: 'text/yaml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'resume.yaml';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// ============================================================
+// AI Resume Generation
+// ============================================================
+const AI_SYSTEM_PROMPT = `You are a resume tailoring expert. Given a resume in YAML format and a job description, generate a tailored version of the resume YAML.
+
+Rules:
+- Return ONLY valid YAML. No markdown fences, no explanations, no extra text.
+- Preserve the exact YAML schema: name, contact, work_experience (with company, title, location, dates, tagline, responsibilities), education (with institution, location, graduation_date, details), skills (with technologies, hard_skills, language_skills).
+- Tailor the responsibilities and skills to match the job description.
+- Keep it truthful - rephrase and emphasize existing experience, do NOT fabricate new experience.
+- Optimize keywords from the job description into the resume naturally.
+- Keep responsibilities as bullet points (array items in YAML).`;
+
+// Curated text chat models, smartest first
+const PREFERRED_MODELS = [
+    'gpt-5.2',
+    'gpt-5.1',
+    'gpt-5-mini',
+    'gpt-4.1',
+    'gpt-4.1-mini',
+    'gpt-4o',
+    'gpt-4o-mini',
+];
+
+async function fetchOpenAiModels(apiKey) {
+    const select = document.getElementById('ai-model');
+    const hint = document.getElementById('ai-model-hint');
+    const currentValue = select.value;
+
+    try {
+        const response = await fetch('https://api.openai.com/v1/models', {
+            headers: { 'Authorization': `Bearer ${apiKey}` },
+        });
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const availableIds = new Set(data.data.map(m => m.id));
+
+        // Keep only preferred models the user's key has access to
+        const models = PREFERRED_MODELS.filter(id => availableIds.has(id));
+
+        if (models.length === 0) return;
+
+        select.textContent = '';
+        models.forEach(id => {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = id;
+            select.appendChild(opt);
+        });
+
+        // Restore previous selection or default to smartest (first in list)
+        if (models.includes(currentValue)) {
+            select.value = currentValue;
+        } else {
+            select.value = models[0];
+        }
+
+        hint.textContent = `${models.length} models available.`;
+    } catch (e) {
+        // Silently keep the default options
+    }
+}
+
+async function generateAiResume() {
+    const apiKey = document.getElementById('openai-key').value.trim();
+    const baseYaml = document.getElementById('ai-base-yaml').value.trim();
+    const jobDesc = document.getElementById('job-description').value.trim();
+    const errorEl = document.getElementById('ai-error');
+    const loadingEl = document.getElementById('ai-loading');
+    const generateBtn = document.getElementById('generate-ai-btn');
+
+    errorEl.style.display = 'none';
+
+    if (!apiKey) {
+        errorEl.textContent = 'Please enter your OpenAI API key.';
+        errorEl.style.display = 'block';
+        return;
+    }
+    if (!baseYaml) {
+        errorEl.textContent = 'Please provide your base resume YAML.';
+        errorEl.style.display = 'block';
+        return;
+    }
+    if (!jobDesc) {
+        errorEl.textContent = 'Please paste the job description.';
+        errorEl.style.display = 'block';
+        return;
+    }
+
+    // Validate the base YAML first
+    try {
+        jsyaml.load(baseYaml);
+    } catch (err) {
+        errorEl.textContent = 'Base YAML is invalid: ' + err.message;
+        errorEl.style.display = 'block';
+        return;
+    }
+
+    loadingEl.style.display = 'flex';
+    generateBtn.disabled = true;
+
+    try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model: document.getElementById('ai-model').value,
+                messages: [
+                    { role: 'system', content: AI_SYSTEM_PROMPT },
+                    {
+                        role: 'user',
+                        content: `Here is my resume YAML:\n\n${baseYaml}\n\nHere is the job description:\n\n${jobDesc}\n\nGenerate a tailored resume YAML that optimizes my experience for this role.`,
+                    },
+                ],
+                temperature: 0.7,
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const message = errorData.error?.message || `API request failed (${response.status})`;
+            throw new Error(message);
+        }
+
+        const result = await response.json();
+        let generatedYaml = result.choices[0].message.content.trim();
+
+        // Strip markdown fences if present
+        generatedYaml = generatedYaml.replace(/^```(?:yaml|yml)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+
+        // Validate the generated YAML
+        try {
+            jsyaml.load(generatedYaml);
+        } catch (parseErr) {
+            throw new Error('AI generated invalid YAML. Please try again.');
+        }
+
+        // Navigate to editor with side-by-side diff view
+        const originalYaml = document.getElementById('ai-base-yaml').value.trim();
+        lastYamlSource = 'ai';
+        showView('editor-view');
+        enterDiffMode(originalYaml, generatedYaml);
+
+    } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+    } finally {
+        loadingEl.style.display = 'none';
+        generateBtn.disabled = false;
+    }
 }
 
 // ============================================================
 // PDF Download
 // ============================================================
 function downloadPDF() {
-    const data = collectFormData();
     const resumePage = document.getElementById('resume-page');
     const renderTarget = document.getElementById('resume-render-target');
     renderTarget.style.position = 'static';
     renderTarget.style.left = 'auto';
 
-    const filename = data.name ? `${data.name} Resume.pdf` : 'Resume.pdf';
+    const filename = lastResumeData?.name ? `${lastResumeData.name} Resume.pdf` : 'Resume.pdf';
 
     html2pdf().set({
         margin: 0,
@@ -511,7 +942,7 @@ function downloadPDF() {
 }
 
 // ============================================================
-// Print Resume (browser print dialog - best quality)
+// Print Resume
 // ============================================================
 function printResume() {
     const renderTarget = document.getElementById('resume-render-target');
@@ -568,6 +999,158 @@ function loadExample() {
     document.getElementById('language-skills').value = 'Fluent in English and Spanish';
 
     saveToLocalStorage();
+}
+
+// ============================================================
+// Diff View
+// ============================================================
+function enterDiffMode(original, generated) {
+    diffMode = true;
+    originalYamlForDiff = original;
+
+    document.getElementById('single-editor-container').style.display = 'none';
+    document.getElementById('diff-container').style.display = 'flex';
+    document.getElementById('diff-stats').style.display = 'flex';
+    document.querySelector('.editor-container').classList.add('diff-active');
+
+    document.getElementById('accept-changes-btn').style.display = '';
+    document.getElementById('revert-changes-btn').style.display = '';
+
+    const rightEditor = document.getElementById('diff-right-editor');
+    rightEditor.value = generated;
+
+    renderDiff(original, generated);
+
+    rightEditor.addEventListener('input', onDiffEditorInput);
+    rightEditor.addEventListener('scroll', onRightEditorScroll);
+    document.getElementById('diff-left-content').addEventListener('scroll', onLeftPaneScroll);
+}
+
+function exitDiffMode(yamlToKeep) {
+    diffMode = false;
+
+    document.getElementById('single-editor-container').style.display = '';
+    document.getElementById('diff-container').style.display = 'none';
+    document.getElementById('diff-stats').style.display = 'none';
+    document.querySelector('.editor-container').classList.remove('diff-active');
+
+    document.getElementById('accept-changes-btn').style.display = 'none';
+    document.getElementById('revert-changes-btn').style.display = 'none';
+
+    document.getElementById('yaml-editor').value = yamlToKeep;
+
+    const rightEditor = document.getElementById('diff-right-editor');
+    rightEditor.removeEventListener('input', onDiffEditorInput);
+    rightEditor.removeEventListener('scroll', onRightEditorScroll);
+    document.getElementById('diff-left-content').removeEventListener('scroll', onLeftPaneScroll);
+
+    if (rediffTimeout) {
+        clearTimeout(rediffTimeout);
+        rediffTimeout = null;
+    }
+}
+
+function renderDiff(oldText, newText) {
+    const changes = Diff.diffLines(oldText, newText);
+
+    // Left pane: show removed lines and context (skip added)
+    const leftContent = document.getElementById('diff-left-content');
+    leftContent.textContent = '';
+    // Inner wrapper so all lines stretch to the widest line's width on horizontal scroll
+    const leftInner = document.createElement('div');
+    leftInner.style.display = 'inline-block';
+    leftInner.style.minWidth = '100%';
+    leftContent.appendChild(leftInner);
+
+    // Right pane highlights: show added lines and context (skip removed)
+    const rightHighlights = document.getElementById('diff-right-highlights');
+    rightHighlights.textContent = '';
+
+    let addedCount = 0;
+    let removedCount = 0;
+    let unchangedCount = 0;
+
+    changes.forEach(part => {
+        const lines = part.value.replace(/\n$/, '').split('\n');
+
+        if (part.removed) {
+            removedCount += lines.length;
+            lines.forEach(line => {
+                const div = document.createElement('div');
+                div.className = 'diff-line diff-line-removed';
+                div.textContent = line || ' ';
+                leftInner.appendChild(div);
+            });
+        } else if (part.added) {
+            addedCount += lines.length;
+            lines.forEach(line => {
+                const div = document.createElement('div');
+                div.className = 'diff-line diff-line-added';
+                div.textContent = line || ' ';
+                rightHighlights.appendChild(div);
+            });
+        } else {
+            unchangedCount += lines.length;
+            lines.forEach(line => {
+                const leftDiv = document.createElement('div');
+                leftDiv.className = 'diff-line diff-line-context';
+                leftDiv.textContent = line || ' ';
+                leftInner.appendChild(leftDiv);
+
+                const rightDiv = document.createElement('div');
+                rightDiv.className = 'diff-line diff-line-context';
+                rightDiv.textContent = line || ' ';
+                rightHighlights.appendChild(rightDiv);
+            });
+        }
+    });
+
+    // Update stats
+    const totalCount = addedCount + removedCount + unchangedCount;
+    document.getElementById('diff-stat-total').textContent = `${totalCount} lines`;
+    document.getElementById('diff-stat-added').textContent = `+${addedCount} added`;
+    document.getElementById('diff-stat-removed').textContent = `-${removedCount} removed`;
+    document.getElementById('diff-stat-unchanged').textContent = `${unchangedCount} unchanged`;
+}
+
+function onDiffEditorInput() {
+    if (rediffTimeout) clearTimeout(rediffTimeout);
+    rediffTimeout = setTimeout(() => {
+        const newValue = document.getElementById('diff-right-editor').value;
+        renderDiff(originalYamlForDiff, newValue);
+        syncHighlightsScroll();
+    }, 300);
+}
+
+function syncHighlightsScroll() {
+    const editor = document.getElementById('diff-right-editor');
+    const highlights = document.getElementById('diff-right-highlights');
+    highlights.style.transform = `translate(-${editor.scrollLeft}px, -${editor.scrollTop}px)`;
+}
+
+function onRightEditorScroll() {
+    syncHighlightsScroll();
+    const editor = document.getElementById('diff-right-editor');
+    const leftContent = document.getElementById('diff-left-content');
+    // Proportional scroll sync
+    const editorRatio = editor.scrollHeight > editor.clientHeight
+        ? editor.scrollTop / (editor.scrollHeight - editor.clientHeight)
+        : 0;
+    if (leftContent.scrollHeight > leftContent.clientHeight) {
+        leftContent.scrollTop = editorRatio * (leftContent.scrollHeight - leftContent.clientHeight);
+    }
+}
+
+function onLeftPaneScroll() {
+    const leftContent = document.getElementById('diff-left-content');
+    const editor = document.getElementById('diff-right-editor');
+    const leftRatio = leftContent.scrollHeight > leftContent.clientHeight
+        ? leftContent.scrollTop / (leftContent.scrollHeight - leftContent.clientHeight)
+        : 0;
+    if (editor.scrollHeight > editor.clientHeight) {
+        editor.scrollTop = leftRatio * (editor.scrollHeight - editor.clientHeight);
+    }
+    syncHighlightsScroll();
 }
 
 // ============================================================

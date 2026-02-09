@@ -10,8 +10,69 @@
 </head>
 <body>
 
+<!-- ===== HOME VIEW ===== -->
+<div id="home-view" class="view active">
+    <div class="home-container">
+        <div class="home-header">
+            <h1 class="home-title">Resume Generator</h1>
+            <p class="home-subtitle">Create a professional resume in minutes</p>
+        </div>
+
+        <div class="path-cards">
+            <button class="path-card" id="path-upload">
+                <div class="path-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="12" y1="18" x2="12" y2="12"></line>
+                        <polyline points="9 15 12 12 15 15"></polyline>
+                    </svg>
+                </div>
+                <h3>Upload YAML</h3>
+                <p>Import an existing resume YAML file</p>
+            </button>
+
+            <button class="path-card" id="path-wizard">
+                <div class="path-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                </div>
+                <h3>Build Step-by-Step</h3>
+                <p>Fill out a guided form to create your resume</p>
+            </button>
+
+            <button class="path-card" id="path-ai">
+                <div class="path-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93L12 22"></path>
+                        <path d="M12 2a4 4 0 0 0-4 4c0 1.95 1.4 3.58 3.25 3.93"></path>
+                        <path d="M16 16h3a2 2 0 0 1 0 4h-3"></path>
+                        <path d="M8 16H5a2 2 0 0 0 0 4h3"></path>
+                        <circle cx="12" cy="14" r="2"></circle>
+                    </svg>
+                </div>
+                <h3>AI Tailored</h3>
+                <p>Use AI to tailor your resume to a job description</p>
+            </button>
+        </div>
+
+        <div class="drop-zone" id="drop-zone">
+            <input type="file" id="file-input" accept=".yaml,.yml" hidden>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <p class="drop-zone-text">Drop your YAML file here or <span class="drop-zone-link">click to browse</span></p>
+            <p class="drop-zone-hint">Accepts .yaml and .yml files</p>
+        </div>
+    </div>
+</div>
+
 <!-- ===== WIZARD VIEW ===== -->
-<div id="wizard-view">
+<div id="wizard-view" class="view">
     <div class="wizard-card">
         <div class="wizard-header">
             <h1 class="wizard-title">Resume Generator</h1>
@@ -28,8 +89,6 @@
                 <div class="progress-step" data-step="3"><span>3</span><label>Education</label></div>
                 <div class="progress-line"></div>
                 <div class="progress-step" data-step="4"><span>4</span><label>Skills</label></div>
-                <div class="progress-line"></div>
-                <div class="progress-step" data-step="5"><span>5</span><label>Preview</label></div>
             </div>
         </div>
 
@@ -69,9 +128,7 @@
         <div class="step" data-step="2">
             <h2>Work Experience</h2>
             <p class="step-desc">Add your jobs, starting with the most recent. Each bullet point should start with a strong action verb.</p>
-            <div id="jobs-container">
-                <!-- Dynamic job entries go here -->
-            </div>
+            <div id="jobs-container"></div>
             <button type="button" class="btn-add" id="add-job">+ Add a Position</button>
         </div>
 
@@ -79,9 +136,7 @@
         <div class="step" data-step="3">
             <h2>Education</h2>
             <p class="step-desc">Add your degrees, certifications, or relevant coursework.</p>
-            <div id="education-container">
-                <!-- Dynamic education entries go here -->
-            </div>
+            <div id="education-container"></div>
             <button type="button" class="btn-add" id="add-education">+ Add Education</button>
         </div>
 
@@ -107,26 +162,139 @@
             </div>
         </div>
 
-        <!-- Step 5: Preview & Download -->
-        <div class="step" data-step="5">
-            <h2>Your Resume</h2>
-            <p class="step-desc">Here's a preview. Click "Download PDF" when you're happy with it.</p>
-            <div class="preview-actions">
-                <button type="button" class="btn-primary" id="download-pdf-btn">Download PDF</button>
-                <button type="button" class="btn-secondary" id="print-btn">Print / Save as PDF</button>
-            </div>
-            <div id="resume-preview-wrapper">
-                <!-- Scaled preview of the resume -->
-            </div>
-        </div>
-
         <!-- Navigation Buttons -->
         <div class="nav-buttons">
             <button type="button" class="btn-secondary" id="prev-btn" style="display:none">Back</button>
             <div class="nav-spacer"></div>
             <button type="button" class="btn-text" id="load-example-btn">Load Example</button>
+            <button type="button" class="btn-text" id="home-from-wizard-btn">Home</button>
             <button type="button" class="btn-primary" id="next-btn">Next</button>
         </div>
+    </div>
+</div>
+
+<!-- ===== EDITOR VIEW ===== -->
+<div id="editor-view" class="view">
+    <div class="editor-container">
+        <div class="editor-header">
+            <h1 class="editor-title">YAML Editor</h1>
+            <p class="editor-subtitle">Edit your resume data in YAML format</p>
+        </div>
+        <div class="editor-error" id="editor-error" style="display:none"></div>
+        <div id="diff-stats" style="display:none">
+            <span class="diff-stat-total" id="diff-stat-total"></span>
+            <span class="diff-stat-added" id="diff-stat-added"></span>
+            <span class="diff-stat-removed" id="diff-stat-removed"></span>
+            <span class="diff-stat-unchanged" id="diff-stat-unchanged"></span>
+        </div>
+
+        <!-- Single editor (non-diff mode) -->
+        <div id="single-editor-container">
+            <textarea id="yaml-editor" class="yaml-textarea" spellcheck="false" placeholder="Paste or edit your resume YAML here..."></textarea>
+        </div>
+
+        <!-- Side-by-side diff (diff mode) -->
+        <div id="diff-container" style="display:none">
+            <div class="diff-pane" id="diff-left-pane">
+                <div class="diff-pane-header">Original</div>
+                <div id="diff-left-content"></div>
+            </div>
+            <div class="diff-pane" id="diff-right-pane">
+                <div class="diff-pane-header">AI Generated (editable)</div>
+                <div id="diff-right-wrapper">
+                    <div id="diff-right-highlights"></div>
+                    <textarea id="diff-right-editor" spellcheck="false"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="editor-actions">
+            <button type="button" class="btn-secondary" id="editor-back-btn">Back</button>
+            <div class="nav-spacer"></div>
+            <button type="button" class="btn-primary" id="accept-changes-btn" style="display:none">Accept Changes</button>
+            <button type="button" class="btn-secondary" id="revert-changes-btn" style="display:none">Revert to Original</button>
+            <button type="button" class="btn-secondary" id="save-yaml-btn">Save YAML</button>
+            <button type="button" class="btn-primary" id="generate-from-yaml-btn">Generate Resume</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== AI VIEW ===== -->
+<div id="ai-view" class="view">
+    <div class="ai-container">
+        <div class="ai-header">
+            <h1 class="ai-title">AI-Tailored Resume</h1>
+            <p class="ai-subtitle">Use AI to tailor your resume to a specific job description</p>
+        </div>
+
+        <div class="form-group">
+            <label for="openai-key">
+                OpenAI API Key
+                <a href="https://www.google.com/search?q=how+to+get+OpenAI+API+key" target="_blank" rel="noopener" class="api-key-help" title="How to get an OpenAI API key">?</a>
+            </label>
+            <input type="password" id="openai-key" placeholder="sk-...">
+            <span class="hint">Your key is stored in your browser only. It is sent directly to OpenAI and never to our servers.</span>
+        </div>
+
+        <div class="form-group">
+            <label for="ai-model">Model</label>
+            <select id="ai-model">
+                <option value="gpt-5.2" selected>gpt-5.2</option>
+                <option value="gpt-4o">gpt-4o</option>
+            </select>
+            <span class="hint" id="ai-model-hint">Enter your API key to load all available models.</span>
+        </div>
+
+        <div class="ai-section">
+            <label class="ai-section-label">Base Resume YAML</label>
+            <div class="ai-yaml-input">
+                <div class="drop-zone drop-zone-small" id="ai-drop-zone">
+                    <input type="file" id="ai-file-input" accept=".yaml,.yml" hidden>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <p class="drop-zone-text">Drop YAML or <span class="drop-zone-link">browse</span></p>
+                </div>
+                <textarea id="ai-base-yaml" class="yaml-textarea yaml-textarea-small" spellcheck="false" placeholder="Or paste your resume YAML here..."></textarea>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="job-description">Job Description</label>
+            <textarea id="job-description" rows="8" placeholder="Paste the job description here..."></textarea>
+        </div>
+
+        <div class="ai-error" id="ai-error" style="display:none"></div>
+
+        <div class="ai-loading" id="ai-loading" style="display:none">
+            <div class="spinner"></div>
+            <p>Generating your tailored resume...</p>
+        </div>
+
+        <div class="ai-actions">
+            <button type="button" class="btn-secondary" id="ai-back-btn">Back</button>
+            <div class="nav-spacer"></div>
+            <button type="button" class="btn-primary" id="generate-ai-btn">Generate Tailored Resume</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== PREVIEW VIEW ===== -->
+<div id="preview-view" class="view">
+    <div class="preview-container">
+        <div class="preview-header">
+            <h1 class="preview-title">Your Resume</h1>
+            <p class="preview-subtitle">Here's a preview. Download or edit when you're happy with it.</p>
+        </div>
+        <div class="preview-actions">
+            <button type="button" class="btn-primary" id="download-pdf-btn">Download PDF</button>
+            <button type="button" class="btn-secondary" id="print-btn">Print / Save as PDF</button>
+            <button type="button" class="btn-secondary" id="edit-yaml-btn">Edit YAML</button>
+            <button type="button" class="btn-secondary" id="start-over-btn">Start Over</button>
+        </div>
+        <div id="resume-preview-wrapper"></div>
     </div>
 </div>
 
@@ -136,22 +304,22 @@
         <div class="rp-padding-element"></div>
         <div class="rp-container" id="rp-resume-container">
             <div class="rp-header">
-                <h1 id="rp-name"></h1>
-                <div class="rp-contact-info" id="rp-contact-info"></div>
+                <h1 id="rp-name" class="js-resizable-text"></h1>
+                <div class="rp-contact-info js-resizable-text" id="rp-contact-info"></div>
             </div>
 
             <div id="rp-work-section" style="display:none">
-                <div class="rp-section-title">WORK EXPERIENCE</div>
+                <div class="rp-section-title js-resizable-text">WORK EXPERIENCE</div>
                 <div id="rp-work-container"></div>
             </div>
 
             <div id="rp-education-section" style="display:none">
-                <div class="rp-section-title">EDUCATION</div>
+                <div class="rp-section-title js-resizable-text">EDUCATION</div>
                 <div id="rp-education-container"></div>
             </div>
 
             <div id="rp-skills-section" style="display:none">
-                <div class="rp-section-title">SKILLS &amp; CERTIFICATIONS</div>
+                <div class="rp-section-title js-resizable-text">SKILLS &amp; CERTIFICATIONS</div>
                 <table class="rp-skills-table">
                     <tbody id="rp-skills-tbody"></tbody>
                 </table>
@@ -162,7 +330,9 @@
 </div>
 
 <!-- Scripts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/7.0.0/diff.min.js"></script>
 <script src="js/app.js"></script>
 
 </body>
