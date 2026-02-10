@@ -88,7 +88,15 @@
                 <div class="progress-line"></div>
                 <div class="progress-step" data-step="3"><span>3</span><label>Education</label></div>
                 <div class="progress-line"></div>
-                <div class="progress-step" data-step="4"><span>4</span><label>Skills</label></div>
+                <div class="progress-step" data-step="4"><span>4</span><label>Projects</label></div>
+                <div class="progress-line"></div>
+                <div class="progress-step" data-step="5"><span>5</span><label>Awards</label></div>
+                <div class="progress-line"></div>
+                <div class="progress-step" data-step="6"><span>6</span><label>Pubs</label></div>
+                <div class="progress-line"></div>
+                <div class="progress-step" data-step="7"><span>7</span><label>Custom</label></div>
+                <div class="progress-line"></div>
+                <div class="progress-step" data-step="8"><span>8</span><label>Skills</label></div>
             </div>
         </div>
 
@@ -140,8 +148,40 @@
             <button type="button" class="btn-add" id="add-education">+ Add Education</button>
         </div>
 
-        <!-- Step 4: Skills -->
+        <!-- Step 4: Projects -->
         <div class="step" data-step="4">
+            <h2>Projects</h2>
+            <p class="step-desc">Showcase personal or professional projects you've built.</p>
+            <div id="projects-container"></div>
+            <button type="button" class="btn-add" id="add-project">+ Add Project</button>
+        </div>
+
+        <!-- Step 5: Awards -->
+        <div class="step" data-step="5">
+            <h2>Honors &amp; Awards</h2>
+            <p class="step-desc">List any awards, honors, or recognition you've received.</p>
+            <div id="awards-container"></div>
+            <button type="button" class="btn-add" id="add-award">+ Add Award</button>
+        </div>
+
+        <!-- Step 6: Publications -->
+        <div class="step" data-step="6">
+            <h2>Publications</h2>
+            <p class="step-desc">Add any papers, articles, or other publications you've authored or co-authored.</p>
+            <div id="publications-container"></div>
+            <button type="button" class="btn-add" id="add-publication">+ Add Publication</button>
+        </div>
+
+        <!-- Step 7: Custom Sections -->
+        <div class="step" data-step="7">
+            <h2>Additional Sections</h2>
+            <p class="step-desc">Add any extra sections you need — interests, hobbies, volunteer work, languages, or anything else. This is optional.</p>
+            <div id="custom-sections-container"></div>
+            <button type="button" class="btn-add" id="add-custom-section">+ Add Section</button>
+        </div>
+
+        <!-- Step 8: Skills -->
+        <div class="step" data-step="8">
             <h2>Skills &amp; Certifications</h2>
             <p class="step-desc">List your technical skills, professional abilities, and languages. Separate items with commas.</p>
             <div class="form-grid">
@@ -298,36 +338,52 @@
     </div>
 </div>
 
-<!-- ===== RESUME RENDER TARGET (hidden, used for PDF generation) ===== -->
-<div id="resume-render-target" style="position:absolute;left:-9999px;top:0;">
-    <div id="resume-page">
-        <div class="rp-padding-element"></div>
-        <div class="rp-container" id="rp-resume-container">
-            <div class="rp-header">
-                <h1 id="rp-name" class="js-resizable-text"></h1>
-                <div class="rp-contact-info js-resizable-text" id="rp-contact-info"></div>
-            </div>
-
-            <div id="rp-work-section" style="display:none">
-                <div class="rp-section-title js-resizable-text">WORK EXPERIENCE</div>
-                <div id="rp-work-container"></div>
-            </div>
-
-            <div id="rp-education-section" style="display:none">
-                <div class="rp-section-title js-resizable-text">EDUCATION</div>
-                <div id="rp-education-container"></div>
-            </div>
-
-            <div id="rp-skills-section" style="display:none">
-                <div class="rp-section-title js-resizable-text">SKILLS &amp; CERTIFICATIONS</div>
-                <table class="rp-skills-table">
-                    <tbody id="rp-skills-tbody"></tbody>
-                </table>
-            </div>
+<!-- ===== STAGING AREA (hidden, used for measuring content before pagination) ===== -->
+<div id="resume-staging" style="position:absolute;left:-9999px;top:0;">
+    <div id="resume-staging-inner">
+        <div class="rp-header">
+            <h1 id="rp-name"></h1>
+            <div class="rp-contact-info" id="rp-contact-info"></div>
         </div>
-        <div class="rp-padding-element"></div>
+
+        <div id="rp-work-section" style="display:none">
+            <div class="rp-section-title">WORK EXPERIENCE</div>
+            <div id="rp-work-container"></div>
+        </div>
+
+        <div id="rp-education-section" style="display:none">
+            <div class="rp-section-title">EDUCATION</div>
+            <div id="rp-education-container"></div>
+        </div>
+
+        <div id="rp-projects-section" style="display:none">
+            <div class="rp-section-title">PROJECTS</div>
+            <div id="rp-projects-container"></div>
+        </div>
+
+        <div id="rp-awards-section" style="display:none">
+            <div class="rp-section-title">HONORS &amp; AWARDS</div>
+            <div id="rp-awards-container"></div>
+        </div>
+
+        <div id="rp-publications-section" style="display:none">
+            <div class="rp-section-title">PUBLICATIONS</div>
+            <div id="rp-publications-container"></div>
+        </div>
+
+        <div id="rp-custom-sections-container"></div>
+
+        <div id="rp-skills-section" style="display:none">
+            <div class="rp-section-title">SKILLS &amp; CERTIFICATIONS</div>
+            <table class="rp-skills-table">
+                <tbody id="rp-skills-tbody"></tbody>
+            </table>
+        </div>
     </div>
 </div>
+
+<!-- ===== RENDER TARGET (hidden, paginated pages go here for PDF/print) ===== -->
+<div id="resume-render-target" style="position:absolute;left:-9999px;top:0;"></div>
 
 <!-- Scripts -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
