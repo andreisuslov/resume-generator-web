@@ -235,8 +235,8 @@ body {
 }
 
 .progress-step span {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     background: var(--border);
     color: var(--text-muted);
@@ -244,7 +244,7 @@ body {
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    font-size: 14px;
+    font-size: 13px;
     transition: all 0.3s ease;
 }
 
@@ -278,10 +278,10 @@ body {
     flex: 1;
     height: 3px;
     background: var(--border);
-    margin: 0 8px;
+    margin: 0 4px;
     margin-bottom: 22px;
     transition: background 0.3s ease;
-    max-width: 80px;
+    max-width: 40px;
 }
 
 .progress-line.filled {
@@ -754,7 +754,9 @@ body {
     border-radius: var(--radius-sm);
     padding: 24px;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
     overflow: hidden;
     width: 100%;
     min-height: 400px;
@@ -766,28 +768,122 @@ body {
 }
 
 /* ============================================================
+   Section Reorder Sidebar
+   ============================================================ */
+.preview-container.has-sidebar {
+    max-width: 1140px;
+    display: grid;
+    grid-template-columns: 1fr 220px;
+    gap: 0 24px;
+}
+
+.preview-container.has-sidebar > .preview-header,
+.preview-container.has-sidebar > .preview-actions {
+    grid-column: 1 / -1;
+}
+
+.section-sidebar {
+    align-self: start;
+    position: sticky;
+    top: 20px;
+    background: var(--card-bg);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+}
+
+.sidebar-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    cursor: grab;
+    transition: background 0.15s, box-shadow 0.15s;
+    user-select: none;
+}
+
+.sidebar-item:hover {
+    background: var(--primary-light);
+}
+
+.sidebar-item:active {
+    cursor: grabbing;
+}
+
+.sidebar-item.dragging {
+    opacity: 0.4;
+}
+
+.sidebar-item-fixed {
+    color: var(--text-muted);
+    cursor: default;
+}
+
+.sidebar-item-fixed:hover {
+    background: transparent;
+}
+
+.sidebar-drag-handle {
+    color: var(--text-muted);
+    font-size: 18px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.sidebar-item-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ============================================================
    Resume Page Styles (prefixed with rp- to avoid conflicts)
    ============================================================ */
-#resume-page,
-#resume-preview-clone {
+
+/* Staging area: same width/fonts as pages but no height constraint */
+#resume-staging-inner {
+    font-family: 'Times New Roman', Times, serif;
+    line-height: 1.3;
+    color: #333;
+    width: 8.5in;
+    padding-left: 0.55in;
+    padding-right: 0.55in;
+    box-sizing: border-box;
+}
+
+/* Each paginated resume page */
+.resume-page {
     font-family: 'Times New Roman', Times, serif;
     line-height: 1.3;
     color: #333;
     background: #fff;
-    padding-left: 0.55in;
-    padding-right: 0.55in;
     width: 8.5in;
     height: 11in;
     box-sizing: border-box;
+    overflow: hidden;
+    position: relative;
 }
 
-.rp-padding-element {
-    height: 0.25in;
-}
-
-.rp-container {
+.resume-page-content {
+    padding: 0.25in 0.55in;
     width: 100%;
-    height: calc(100% - 0.5in);
+    height: 100%;
     box-sizing: border-box;
     overflow: hidden;
 }
@@ -871,6 +967,90 @@ body {
 
 .rp-education .rp-details {
     font-size: 10.5pt;
+}
+
+.rp-project {
+    margin-bottom: 10px;
+}
+
+.rp-project-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11pt;
+    margin-bottom: 2px;
+}
+
+.rp-project-name {
+    font-weight: normal;
+}
+
+.rp-project-link {
+    font-style: italic;
+    white-space: nowrap;
+}
+
+.rp-project-link a {
+    color: #1155CC;
+    text-decoration: none;
+    font-size: 10pt;
+}
+
+.rp-project-desc {
+    font-size: 10.5pt;
+    margin: 0;
+    text-align: justify;
+    hyphens: auto;
+}
+
+.rp-award {
+    margin-bottom: 8px;
+}
+
+.rp-award-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11pt;
+    margin-bottom: 2px;
+}
+
+.rp-award-summary {
+    font-size: 10.5pt;
+    margin: 0;
+}
+
+.rp-publication {
+    margin-bottom: 8px;
+}
+
+.rp-pub-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11pt;
+    margin-bottom: 2px;
+}
+
+.rp-pub-summary {
+    font-size: 10.5pt;
+    margin: 0;
+}
+
+.rp-pub-link {
+    font-size: 9.5pt;
+    margin: 2px 0 0 0;
+}
+
+.rp-pub-link a {
+    color: #1155CC;
+    text-decoration: none;
+}
+
+.rp-custom-section {
+    margin-bottom: 10px;
+}
+
+.rp-custom-paragraph {
+    font-size: 10.5pt;
+    margin: 0;
 }
 
 .rp-skills-table {
@@ -1038,19 +1218,42 @@ body {
         display: none !important;
     }
 
+    #resume-staging {
+        display: none !important;
+    }
+
     #resume-render-target {
         position: static !important;
         left: auto !important;
     }
 
-    #resume-page {
+    .section-sidebar {
+        display: none !important;
+    }
+
+    .resume-page {
         box-shadow: none;
+        page-break-after: always;
+    }
+
+    .resume-page:last-child {
+        page-break-after: auto;
     }
 }
 
 /* ============================================================
    Responsive
    ============================================================ */
+@media (max-width: 900px) {
+    .section-sidebar {
+        display: none;
+    }
+    .preview-container.has-sidebar {
+        display: block;
+        max-width: 900px;
+    }
+}
+
 @media (max-width: 640px) {
     .home-container {
         padding: 32px 16px;

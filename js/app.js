@@ -2,14 +2,29 @@
 // State
 // ============================================================
 let currentStep = 1;
-const totalSteps = 4;
+const totalSteps = 8;
 let jobCounter = 0;
 let eduCounter = 0;
+let projectCounter = 0;
+let awardCounter = 0;
+let publicationCounter = 0;
+let customSectionCounter = 0;
 let lastResumeData = null; // Stores the data used to render the current preview
 let lastYamlSource = null; // Tracks where preview came from: 'wizard', 'editor', 'ai'
 let originalYamlForDiff = null; // Base YAML before AI modification
 let diffMode = false;            // Whether diff view is active
 let rediffTimeout = null;        // Debounce timer for re-diffing on edit
+let sectionOrder = null;              // Custom section ordering for drag-and-drop
+
+const DEFAULT_SECTION_DEFS = [
+    { id: 'rp-work-section', entryClass: 'rp-job', label: 'Work Experience' },
+    { id: 'rp-education-section', entryClass: 'rp-education', label: 'Education' },
+    { id: 'rp-projects-section', entryClass: 'rp-project', label: 'Projects' },
+    { id: 'rp-awards-section', entryClass: 'rp-award', label: 'Awards' },
+    { id: 'rp-publications-section', entryClass: 'rp-publication', label: 'Publications' },
+    { id: 'rp-custom-sections-container', entryClass: 'rp-custom-section', isCustom: true, label: 'Custom Sections' },
+    { id: 'rp-skills-section', entryClass: null, label: 'Skills' },
+];
 
 // ============================================================
 // View Navigation
@@ -27,12 +42,19 @@ function showView(viewId) {
 document.addEventListener('DOMContentLoaded', () => {
     addJobEntry();
     addEducationEntry();
+    addProjectEntry();
+    addAwardEntry();
+    addPublicationEntry();
 
     // Wizard navigation
     document.getElementById('next-btn').addEventListener('click', nextStep);
     document.getElementById('prev-btn').addEventListener('click', prevStep);
     document.getElementById('add-job').addEventListener('click', () => addJobEntry());
     document.getElementById('add-education').addEventListener('click', () => addEducationEntry());
+    document.getElementById('add-project').addEventListener('click', () => addProjectEntry());
+    document.getElementById('add-award').addEventListener('click', () => addAwardEntry());
+    document.getElementById('add-publication').addEventListener('click', () => addPublicationEntry());
+    document.getElementById('add-custom-section').addEventListener('click', () => addCustomSectionEntry());
     document.getElementById('load-example-btn').addEventListener('click', loadExample);
     document.getElementById('home-from-wizard-btn').addEventListener('click', () => showView('home-view'));
 
@@ -70,6 +92,11 @@ document.addEventListener('DOMContentLoaded', () => {
         showView('editor-view');
     });
     document.getElementById('start-over-btn').addEventListener('click', () => {
+        sectionOrder = null;
+        const sidebar = document.querySelector('.section-sidebar');
+        if (sidebar) sidebar.remove();
+        const previewContainer = document.querySelector('.preview-container');
+        if (previewContainer) previewContainer.classList.remove('has-sidebar');
         showView('home-view');
     });
 
@@ -349,6 +376,197 @@ function addEducationEntry(data) {
     container.appendChild(card);
 }
 
+// ============================================================
+// Dynamic Project Entries
+// ============================================================
+function addProjectEntry(data) {
+    projectCounter++;
+    const id = projectCounter;
+    const container = document.getElementById('projects-container');
+    const card = document.createElement('div');
+    card.className = 'entry-card';
+    card.id = `project-${id}`;
+
+    const header = document.createElement('div');
+    header.className = 'entry-card-header';
+    const h3 = document.createElement('h3');
+    h3.textContent = `Project ${id}`;
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn-remove';
+    removeBtn.textContent = 'Remove';
+    removeBtn.addEventListener('click', () => removeEntry(`project-${id}`));
+    header.appendChild(h3);
+    header.appendChild(removeBtn);
+
+    const grid = document.createElement('div');
+    grid.className = 'form-grid';
+    grid.appendChild(createFormGroup('Project Name', 'text', 'project-name', 'e.g. Piper Chat', data?.name));
+    grid.appendChild(createFormGroup('Link to Project', 'url', 'project-link', 'e.g. http://piperchat.com', data?.link));
+    grid.appendChild(createFormGroup('Tools Used', 'text', 'project-tools', 'e.g. Java, React, WebRTC', data?.tools, true));
+
+    const descGroup = document.createElement('div');
+    descGroup.className = 'form-group full-width';
+    const descLabel = document.createElement('label');
+    descLabel.textContent = 'Project Description';
+    const descTextarea = document.createElement('textarea');
+    descTextarea.className = 'project-description';
+    descTextarea.rows = 3;
+    descTextarea.placeholder = 'Briefly describe what the project does and your role in it.';
+    descTextarea.value = data?.description || '';
+    descGroup.appendChild(descLabel);
+    descGroup.appendChild(descTextarea);
+    grid.appendChild(descGroup);
+
+    card.appendChild(header);
+    card.appendChild(grid);
+    container.appendChild(card);
+}
+
+// ============================================================
+// Dynamic Award Entries
+// ============================================================
+function addAwardEntry(data) {
+    awardCounter++;
+    const id = awardCounter;
+    const container = document.getElementById('awards-container');
+    const card = document.createElement('div');
+    card.className = 'entry-card';
+    card.id = `award-${id}`;
+
+    const header = document.createElement('div');
+    header.className = 'entry-card-header';
+    const h3 = document.createElement('h3');
+    h3.textContent = `Award ${id}`;
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn-remove';
+    removeBtn.textContent = 'Remove';
+    removeBtn.addEventListener('click', () => removeEntry(`award-${id}`));
+    header.appendChild(h3);
+    header.appendChild(removeBtn);
+
+    const grid = document.createElement('div');
+    grid.className = 'form-grid';
+    grid.appendChild(createFormGroup('Award Name', 'text', 'award-name', 'e.g. Salesman of the Month', data?.name));
+    grid.appendChild(createFormGroup('Awarder', 'text', 'award-awarder', 'e.g. Dunder Mifflin', data?.awarder));
+    grid.appendChild(createFormGroup('Date', 'text', 'award-date', 'e.g. May 2015', data?.date));
+
+    const summaryGroup = document.createElement('div');
+    summaryGroup.className = 'form-group full-width';
+    const summaryLabel = document.createElement('label');
+    summaryLabel.textContent = 'Summary';
+    const summaryTextarea = document.createElement('textarea');
+    summaryTextarea.className = 'award-summary';
+    summaryTextarea.rows = 2;
+    summaryTextarea.placeholder = 'Briefly describe the award or recognition.';
+    summaryTextarea.value = data?.summary || '';
+    summaryGroup.appendChild(summaryLabel);
+    summaryGroup.appendChild(summaryTextarea);
+    grid.appendChild(summaryGroup);
+
+    card.appendChild(header);
+    card.appendChild(grid);
+    container.appendChild(card);
+}
+
+// ============================================================
+// Dynamic Publication Entries
+// ============================================================
+function addPublicationEntry(data) {
+    publicationCounter++;
+    const id = publicationCounter;
+    const container = document.getElementById('publications-container');
+    const card = document.createElement('div');
+    card.className = 'entry-card';
+    card.id = `publication-${id}`;
+
+    const header = document.createElement('div');
+    header.className = 'entry-card-header';
+    const h3 = document.createElement('h3');
+    h3.textContent = `Publication ${id}`;
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn-remove';
+    removeBtn.textContent = 'Remove';
+    removeBtn.addEventListener('click', () => removeEntry(`publication-${id}`));
+    header.appendChild(h3);
+    header.appendChild(removeBtn);
+
+    const grid = document.createElement('div');
+    grid.className = 'form-grid';
+    grid.appendChild(createFormGroup('Title', 'text', 'pub-title', 'e.g. Machine Learning in Paper Sales', data?.title));
+    grid.appendChild(createFormGroup('Publisher / Venue', 'text', 'pub-publisher', 'e.g. Journal of Business, Conference Name', data?.publisher));
+    grid.appendChild(createFormGroup('Date', 'text', 'pub-date', 'e.g. June 2020', data?.date));
+    grid.appendChild(createFormGroup('Link', 'url', 'pub-link', 'e.g. https://doi.org/...', data?.link));
+
+    const summaryGroup = document.createElement('div');
+    summaryGroup.className = 'form-group full-width';
+    const summaryLabel = document.createElement('label');
+    summaryLabel.textContent = 'Summary';
+    const summaryTextarea = document.createElement('textarea');
+    summaryTextarea.className = 'pub-summary';
+    summaryTextarea.rows = 2;
+    summaryTextarea.placeholder = 'Briefly describe the publication.';
+    summaryTextarea.value = data?.summary || '';
+    summaryGroup.appendChild(summaryLabel);
+    summaryGroup.appendChild(summaryTextarea);
+    grid.appendChild(summaryGroup);
+
+    card.appendChild(header);
+    card.appendChild(grid);
+    container.appendChild(card);
+}
+
+// ============================================================
+// Dynamic Custom Section Entries
+// ============================================================
+function addCustomSectionEntry(data) {
+    customSectionCounter++;
+    const id = customSectionCounter;
+    const container = document.getElementById('custom-sections-container');
+    const card = document.createElement('div');
+    card.className = 'entry-card';
+    card.id = `custom-section-${id}`;
+
+    const header = document.createElement('div');
+    header.className = 'entry-card-header';
+    const h3 = document.createElement('h3');
+    h3.textContent = `Custom Section ${id}`;
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn-remove';
+    removeBtn.textContent = 'Remove';
+    removeBtn.addEventListener('click', () => removeEntry(`custom-section-${id}`));
+    header.appendChild(h3);
+    header.appendChild(removeBtn);
+
+    const grid = document.createElement('div');
+    grid.className = 'form-grid';
+    grid.appendChild(createFormGroup('Section Heading', 'text', 'custom-heading', 'e.g. Interests & Hobbies, Volunteer Work, etc.', data?.heading, true));
+
+    const contentGroup = document.createElement('div');
+    contentGroup.className = 'form-group full-width';
+    const contentLabel = document.createElement('label');
+    contentLabel.textContent = 'Content';
+    const contentTextarea = document.createElement('textarea');
+    contentTextarea.className = 'custom-content';
+    contentTextarea.rows = 4;
+    contentTextarea.placeholder = 'Enter content for this section. One item per line for bullet points, or write a paragraph.';
+    contentTextarea.value = data?.content || '';
+    const hint = document.createElement('span');
+    hint.className = 'hint';
+    hint.textContent = 'One item per line becomes bullet points. A single line is displayed as a paragraph.';
+    contentGroup.appendChild(contentLabel);
+    contentGroup.appendChild(contentTextarea);
+    contentGroup.appendChild(hint);
+    grid.appendChild(contentGroup);
+
+    card.appendChild(header);
+    card.appendChild(grid);
+    container.appendChild(card);
+}
+
 function createFormGroup(labelText, inputType, className, placeholder, value, fullWidth) {
     const group = document.createElement('div');
     group.className = 'form-group' + (fullWidth ? ' full-width' : '');
@@ -384,6 +602,10 @@ function collectFormData() {
         },
         work_experience: [],
         education: [],
+        projects: [],
+        awards: [],
+        publications: [],
+        custom_sections: [],
         skills: {},
     };
 
@@ -411,6 +633,45 @@ function collectFormData() {
         if (edu.institution) data.education.push(edu);
     });
 
+    document.querySelectorAll('#projects-container .entry-card').forEach(card => {
+        const project = {
+            name: card.querySelector('.project-name').value.trim(),
+            description: card.querySelector('.project-description').value.trim(),
+            link: card.querySelector('.project-link').value.trim(),
+            tools: card.querySelector('.project-tools').value.trim(),
+        };
+        if (project.name) data.projects.push(project);
+    });
+
+    document.querySelectorAll('#awards-container .entry-card').forEach(card => {
+        const award = {
+            name: card.querySelector('.award-name').value.trim(),
+            awarder: card.querySelector('.award-awarder').value.trim(),
+            date: card.querySelector('.award-date').value.trim(),
+            summary: card.querySelector('.award-summary').value.trim(),
+        };
+        if (award.name) data.awards.push(award);
+    });
+
+    document.querySelectorAll('#publications-container .entry-card').forEach(card => {
+        const pub = {
+            title: card.querySelector('.pub-title').value.trim(),
+            publisher: card.querySelector('.pub-publisher').value.trim(),
+            date: card.querySelector('.pub-date').value.trim(),
+            link: card.querySelector('.pub-link').value.trim(),
+            summary: card.querySelector('.pub-summary').value.trim(),
+        };
+        if (pub.title) data.publications.push(pub);
+    });
+
+    document.querySelectorAll('#custom-sections-container .entry-card').forEach(card => {
+        const section = {
+            heading: card.querySelector('.custom-heading').value.trim(),
+            content: card.querySelector('.custom-content').value.trim(),
+        };
+        if (section.heading && section.content) data.custom_sections.push(section);
+    });
+
     const techs = document.getElementById('technologies').value.trim();
     const hardSkills = document.getElementById('hard-skills').value.trim();
     const langSkills = document.getElementById('language-skills').value.trim();
@@ -428,6 +689,27 @@ function dataToYaml(data) {
     return jsyaml.dump(data, { lineWidth: -1, noRefs: true, sortKeys: false });
 }
 
+function parseSortDate(dateStr) {
+    if (!dateStr) return 0;
+    dateStr = dateStr.trim();
+    if (/present/i.test(dateStr)) return 999999;
+    const months = {
+        jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2,
+        apr: 3, april: 3, may: 4, jun: 5, june: 5, jul: 6, july: 6,
+        aug: 7, august: 7, sep: 8, september: 8, oct: 9, october: 9,
+        nov: 10, november: 10, dec: 11, december: 11,
+    };
+    const monthYear = dateStr.match(/([a-z]+)\s+(\d{4})/i);
+    if (monthYear) {
+        const month = months[monthYear[1].toLowerCase()];
+        const year = parseInt(monthYear[2]);
+        if (month !== undefined && !isNaN(year)) return year * 12 + month;
+    }
+    const yearOnly = dateStr.match(/(\d{4})/);
+    if (yearOnly) return parseInt(yearOnly[1]) * 12;
+    return 0;
+}
+
 function yamlToData(yamlStr) {
     const data = jsyaml.load(yamlStr);
     if (!data || typeof data !== 'object') {
@@ -438,6 +720,10 @@ function yamlToData(yamlStr) {
     data.contact = data.contact || {};
     data.work_experience = data.work_experience || [];
     data.education = data.education || [];
+    data.projects = data.projects || [];
+    data.awards = data.awards || [];
+    data.publications = data.publications || [];
+    data.custom_sections = data.custom_sections || [];
     data.skills = data.skills || {};
     // Ensure responsibilities are arrays
     data.work_experience.forEach(job => {
@@ -446,6 +732,42 @@ function yamlToData(yamlStr) {
         }
         job.responsibilities = job.responsibilities || [];
     });
+    // Normalize education dates (e.g. "Present (August 2024 - )" → "August 2024 - Present")
+    data.education.forEach(edu => {
+        if (edu.graduation_date) {
+            const match = edu.graduation_date.match(/^Present\s*\((.+?)\s*-\s*\)$/i);
+            if (match) {
+                edu.graduation_date = `${match[1]} - Present`;
+            }
+        }
+    });
+    // Normalize custom section content to strings
+    data.custom_sections.forEach(section => {
+        if (Array.isArray(section.content)) {
+            section.content = section.content.join('\n');
+        }
+        section.content = section.content || '';
+        section.heading = section.heading || 'Additional Information';
+    });
+    // Sort entries in reverse chronological order (most recent first)
+    const endDateOf = (dateStr) => {
+        if (!dateStr) return 0;
+        const parts = dateStr.split(/\s*[-–—]\s*/);
+        return parseSortDate(parts[parts.length - 1]);
+    };
+    const startDateOf = (dateStr) => {
+        if (!dateStr) return 0;
+        const parts = dateStr.split(/\s*[-–—]\s*/);
+        return parseSortDate(parts[0]);
+    };
+    data.work_experience.sort((a, b) => {
+        const endDiff = endDateOf(b.dates) - endDateOf(a.dates);
+        if (endDiff !== 0) return endDiff;
+        return startDateOf(b.dates) - startDateOf(a.dates);
+    });
+    data.education.sort((a, b) => parseSortDate(b.graduation_date) - parseSortDate(a.graduation_date));
+    data.awards.sort((a, b) => parseSortDate(b.date) - parseSortDate(a.date));
+    data.publications.sort((a, b) => parseSortDate(b.date) - parseSortDate(a.date));
     return data;
 }
 
@@ -454,24 +776,34 @@ function yamlToData(yamlStr) {
 // ============================================================
 function renderResumeFromData(data) {
     lastResumeData = data;
+    sectionOrder = null;
 
+    const staging = document.getElementById('resume-staging');
     const renderTarget = document.getElementById('resume-render-target');
 
-    // Temporarily make visible for accurate measurement
-    renderTarget.style.position = 'static';
-    renderTarget.style.left = 'auto';
+    // Make staging visible for accurate measurement
+    staging.style.position = 'static';
+    staging.style.left = 'auto';
 
     populateResumeDOM(data);
 
     // Use rAF to ensure browser has laid out the element before measuring
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-            adjustContentToPage();
+            paginateResume();
+
+            // Hide staging
+            staging.style.position = 'absolute';
+            staging.style.left = '-9999px';
 
             // Show the preview
             showView('preview-view');
+            buildSectionSidebar();
 
-            // Need another rAF to ensure preview-view is visible and has width
+            // Make render target visible temporarily for preview cloning
+            renderTarget.style.position = 'static';
+            renderTarget.style.left = 'auto';
+
             requestAnimationFrame(() => {
                 showPreview();
 
@@ -532,6 +864,57 @@ function populateResumeDOM(data) {
         });
     } else {
         eduSection.style.display = 'none';
+    }
+
+    // --- Projects ---
+    const projectsContainer = document.getElementById('rp-projects-container');
+    const projectsSection = document.getElementById('rp-projects-section');
+    projectsContainer.textContent = '';
+    if (data.projects && data.projects.length > 0) {
+        projectsSection.style.display = 'block';
+        data.projects.forEach(project => {
+            projectsContainer.appendChild(createResumeProjectElement(project));
+        });
+    } else {
+        projectsSection.style.display = 'none';
+    }
+
+    // --- Awards ---
+    const awardsContainer = document.getElementById('rp-awards-container');
+    const awardsSection = document.getElementById('rp-awards-section');
+    awardsContainer.textContent = '';
+    if (data.awards && data.awards.length > 0) {
+        awardsSection.style.display = 'block';
+        data.awards.forEach(award => {
+            awardsContainer.appendChild(createResumeAwardElement(award));
+        });
+    } else {
+        awardsSection.style.display = 'none';
+    }
+
+    // --- Publications ---
+    const pubsContainer = document.getElementById('rp-publications-container');
+    const pubsSection = document.getElementById('rp-publications-section');
+    pubsContainer.textContent = '';
+    if (data.publications && data.publications.length > 0) {
+        pubsSection.style.display = 'block';
+        data.publications.forEach(pub => {
+            pubsContainer.appendChild(createResumePublicationElement(pub));
+        });
+    } else {
+        pubsSection.style.display = 'none';
+    }
+
+    // --- Custom Sections ---
+    const customContainer = document.getElementById('rp-custom-sections-container');
+    customContainer.textContent = '';
+    if (data.custom_sections && data.custom_sections.length > 0) {
+        data.custom_sections.forEach((section, idx) => {
+            const el = createResumeCustomSectionElement(section);
+            el.id = `rp-custom-${idx}`;
+            el.dataset.customLabel = section.heading;
+            customContainer.appendChild(el);
+        });
     }
 
     // --- Skills ---
@@ -640,44 +1023,258 @@ function createResumeEduElement(edu) {
     return div;
 }
 
-// ============================================================
-// Auto-fit content to page
-// ============================================================
-function adjustContentToPage() {
-    const container = document.getElementById('rp-resume-container');
-    if (!container) return;
+function createResumeProjectElement(project) {
+    const div = document.createElement('div');
+    div.className = 'rp-project';
 
-    const resizableElements = Array.from(container.querySelectorAll('.js-resizable-text'));
-    const targetHeight = container.clientHeight;
-    if (resizableElements.length === 0 || targetHeight === 0) return;
+    const header = document.createElement('div');
+    header.className = 'rp-project-header js-resizable-text';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'rp-project-name';
+    const b = document.createElement('b');
+    b.textContent = project.name;
+    nameSpan.appendChild(b);
+    if (project.tools) {
+        nameSpan.appendChild(document.createTextNode(' | ' + project.tools));
+    }
+    header.appendChild(nameSpan);
+    if (project.link) {
+        const linkSpan = document.createElement('span');
+        linkSpan.className = 'rp-project-link';
+        const a = document.createElement('a');
+        a.href = project.link;
+        a.textContent = project.link;
+        linkSpan.appendChild(a);
+        header.appendChild(linkSpan);
+    }
 
-    const initialFontSizes = resizableElements.map(el => {
-        el.style.fontSize = '';
-        return parseFloat(window.getComputedStyle(el).fontSize);
-    });
+    div.appendChild(header);
 
-    const applyScale = (scale) => {
-        resizableElements.forEach((el, index) => {
-            el.style.fontSize = `${initialFontSizes[index] * scale}px`;
+    if (project.description) {
+        const desc = document.createElement('p');
+        desc.className = 'rp-project-desc js-resizable-text';
+        desc.textContent = project.description;
+        div.appendChild(desc);
+    }
+
+    return div;
+}
+
+function createResumeCustomSectionElement(section) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'rp-custom-section';
+
+    const title = document.createElement('div');
+    title.className = 'rp-section-title';
+    title.textContent = section.heading.toUpperCase();
+    wrapper.appendChild(title);
+
+    const lines = section.content.split('\n').map(s => s.trim()).filter(Boolean);
+    if (lines.length === 1) {
+        const p = document.createElement('p');
+        p.className = 'rp-custom-paragraph';
+        p.textContent = lines[0];
+        wrapper.appendChild(p);
+    } else {
+        const ul = document.createElement('ul');
+        ul.className = 'rp-description';
+        lines.forEach(line => {
+            const li = document.createElement('li');
+            li.textContent = line;
+            ul.appendChild(li);
         });
-    };
+        wrapper.appendChild(ul);
+    }
 
-    let minScale = 0.1;
-    let maxScale = 1.0;
-    let bestScale = 1.0;
+    return wrapper;
+}
 
-    for (let i = 0; i < 10; i++) {
-        let midScale = (minScale + maxScale) / 2;
-        applyScale(midScale);
-        if (container.scrollHeight > targetHeight) {
-            maxScale = midScale;
-        } else {
-            bestScale = midScale;
-            minScale = midScale;
+function createResumeAwardElement(award) {
+    const div = document.createElement('div');
+    div.className = 'rp-award';
+
+    const header = document.createElement('div');
+    header.className = 'rp-award-header js-resizable-text';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'rp-award-name';
+    const b = document.createElement('b');
+    b.textContent = award.name;
+    nameSpan.appendChild(b);
+    if (award.awarder) {
+        nameSpan.appendChild(document.createTextNode(' — ' + award.awarder));
+    }
+    header.appendChild(nameSpan);
+    if (award.date) {
+        const dateSpan = document.createElement('span');
+        dateSpan.className = 'rp-date';
+        dateSpan.textContent = award.date;
+        header.appendChild(dateSpan);
+    }
+
+    div.appendChild(header);
+
+    if (award.summary) {
+        const desc = document.createElement('p');
+        desc.className = 'rp-award-summary js-resizable-text';
+        desc.textContent = award.summary;
+        div.appendChild(desc);
+    }
+
+    return div;
+}
+
+function createResumePublicationElement(pub) {
+    const div = document.createElement('div');
+    div.className = 'rp-publication';
+
+    const header = document.createElement('div');
+    header.className = 'rp-pub-header js-resizable-text';
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'rp-pub-title';
+    const b = document.createElement('b');
+    b.textContent = pub.title;
+    titleSpan.appendChild(b);
+    if (pub.publisher) {
+        titleSpan.appendChild(document.createTextNode(' — ' + pub.publisher));
+    }
+    header.appendChild(titleSpan);
+    if (pub.date) {
+        const dateSpan = document.createElement('span');
+        dateSpan.className = 'rp-date';
+        dateSpan.textContent = pub.date;
+        header.appendChild(dateSpan);
+    }
+
+    div.appendChild(header);
+
+    if (pub.summary) {
+        const desc = document.createElement('p');
+        desc.className = 'rp-pub-summary js-resizable-text';
+        desc.textContent = pub.summary;
+        div.appendChild(desc);
+    }
+
+    if (pub.link) {
+        const linkP = document.createElement('p');
+        linkP.className = 'rp-pub-link js-resizable-text';
+        const a = document.createElement('a');
+        a.href = pub.link;
+        a.textContent = pub.link;
+        linkP.appendChild(a);
+        div.appendChild(linkP);
+    }
+
+    return div;
+}
+
+// ============================================================
+// Multi-page Pagination
+// ============================================================
+function paginateResume() {
+    const staging = document.getElementById('resume-staging-inner');
+    const renderTarget = document.getElementById('resume-render-target');
+    renderTarget.textContent = '';
+
+    // Usable height per page in pixels (11in page minus 0.25in top + 0.25in bottom padding)
+    const USABLE_HEIGHT = (11 - 0.5) * 96; // 1008px
+
+    // Collect atomic block groups from the staging area
+    const groups = collectBlockGroups(staging);
+    if (groups.length === 0) return;
+
+    // Use the staging area's coordinate system for measurement
+    const stagingRect = staging.getBoundingClientRect();
+
+    // Distribute groups across pages
+    const pages = [[]];
+    let pageBreakAt = USABLE_HEIGHT;
+
+    for (const group of groups) {
+        const firstRect = group[0].getBoundingClientRect();
+        const lastRect = group[group.length - 1].getBoundingClientRect();
+        const groupTop = firstRect.top - stagingRect.top;
+        const groupBottom = lastRect.bottom - stagingRect.top;
+
+        // If this group doesn't fit on the current page, start a new one
+        if (pages[pages.length - 1].length > 0 && groupBottom > pageBreakAt) {
+            pages.push([]);
+            pageBreakAt = groupTop + USABLE_HEIGHT;
+        }
+
+        pages[pages.length - 1].push(group);
+    }
+
+    // Build page DOMs
+    for (const pageGroups of pages) {
+        const pageEl = document.createElement('div');
+        pageEl.className = 'resume-page';
+
+        const content = document.createElement('div');
+        content.className = 'resume-page-content';
+
+        for (const group of pageGroups) {
+            for (const el of group) {
+                const clone = el.cloneNode(true);
+                clone.removeAttribute('id');
+                clone.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+                content.appendChild(clone);
+            }
+        }
+
+        // Remove top margin from first child to avoid wasted space at page top
+        if (content.firstChild) {
+            content.firstChild.style.marginTop = '0';
+        }
+
+        pageEl.appendChild(content);
+        renderTarget.appendChild(pageEl);
+    }
+}
+
+function collectBlockGroups(staging) {
+    const groups = [];
+
+    // Header is always its own group
+    const header = staging.querySelector('.rp-header');
+    if (header) {
+        groups.push([header]);
+    }
+
+    // Sections with individual entries
+    const sectionDefs = sectionOrder || DEFAULT_SECTION_DEFS;
+
+    for (const def of sectionDefs) {
+        const section = staging.querySelector('#' + def.id);
+        if (!section || section.style.display === 'none') continue;
+
+        if (!def.entryClass) {
+            // Treat entire section as one group (e.g. skills)
+            groups.push([section]);
+            continue;
+        }
+
+        // Custom sections: each entry is a self-contained block (has its own title)
+        if (def.isCustom) {
+            const entries = Array.from(section.querySelectorAll('.' + def.entryClass));
+            entries.forEach(entry => groups.push([entry]));
+            continue;
+        }
+
+        const title = section.querySelector('.rp-section-title');
+        const entries = Array.from(section.querySelectorAll('.' + def.entryClass));
+
+        if (entries.length === 0) continue;
+
+        // Group title with first entry so the title is never orphaned at page bottom
+        groups.push([title, entries[0]]);
+
+        // Remaining entries are individual groups
+        for (let i = 1; i < entries.length; i++) {
+            groups.push([entries[i]]);
         }
     }
 
-    applyScale(bestScale);
+    return groups;
 }
 
 // ============================================================
@@ -685,31 +1282,219 @@ function adjustContentToPage() {
 // ============================================================
 function showPreview() {
     const wrapper = document.getElementById('resume-preview-wrapper');
-    const resumePage = document.getElementById('resume-page');
+    wrapper.textContent = '';
 
-    const clone = resumePage.cloneNode(true);
-    clone.id = 'resume-preview-clone';
-
+    const pages = document.querySelectorAll('#resume-render-target .resume-page');
     const wrapperWidth = wrapper.clientWidth - 48;
     const pageWidth = 8.5 * 96;
     const pageHeight = 11 * 96;
     const scale = Math.min(wrapperWidth / pageWidth, 1);
 
-    const scaler = document.createElement('div');
-    scaler.className = 'resume-preview-scaler';
-    scaler.style.transform = `scale(${scale})`;
-    scaler.style.transformOrigin = 'top center';
-    scaler.style.width = `${pageWidth}px`;
-    scaler.style.height = `${pageHeight}px`;
-    // Collapse extra layout space so wrapper sizes to the visual height
-    scaler.style.marginBottom = `-${pageHeight - pageHeight * scale}px`;
-    scaler.appendChild(clone);
+    pages.forEach(page => {
+        const clone = page.cloneNode(true);
 
-    wrapper.textContent = '';
-    wrapper.appendChild(scaler);
+        const scaler = document.createElement('div');
+        scaler.className = 'resume-preview-scaler';
+        scaler.style.transform = `scale(${scale})`;
+        scaler.style.transformOrigin = 'top center';
+        scaler.style.width = `${pageWidth}px`;
+        scaler.style.height = `${pageHeight}px`;
+        scaler.style.marginBottom = `-${pageHeight - pageHeight * scale}px`;
+        scaler.appendChild(clone);
 
-    // Let wrapper size naturally from its content
+        wrapper.appendChild(scaler);
+    });
+
     wrapper.style.height = '';
+}
+
+// ============================================================
+// Section Reorder (Drag-and-Drop)
+// ============================================================
+function reorderStagingDOM(orderedDefs) {
+    const staging = document.getElementById('resume-staging-inner');
+    for (const def of orderedDefs) {
+        const el = staging.querySelector('#' + def.id);
+        if (el) staging.appendChild(el);
+    }
+}
+
+function reRenderWithCurrentOrder() {
+    const staging = document.getElementById('resume-staging');
+    const renderTarget = document.getElementById('resume-render-target');
+
+    staging.style.position = 'static';
+    staging.style.left = 'auto';
+
+    reorderStagingDOM(sectionOrder);
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            paginateResume();
+
+            staging.style.position = 'absolute';
+            staging.style.left = '-9999px';
+
+            renderTarget.style.position = 'static';
+            renderTarget.style.left = 'auto';
+
+            requestAnimationFrame(() => {
+                showPreview();
+
+                renderTarget.style.position = 'absolute';
+                renderTarget.style.left = '-9999px';
+            });
+        });
+    });
+}
+
+function getActiveSectionDefs() {
+    const defs = sectionOrder || DEFAULT_SECTION_DEFS;
+    const result = [];
+    for (const def of defs) {
+        if (def.isCustom) {
+            // Expand container into individual custom section entries
+            const container = document.getElementById(def.id);
+            if (!container) continue;
+            const entries = container.querySelectorAll('.rp-custom-section');
+            entries.forEach(entry => {
+                result.push({
+                    id: entry.id,
+                    label: entry.dataset.customLabel || 'Custom Section',
+                    isCustomEntry: true,
+                });
+            });
+        } else if (def.isCustomEntry) {
+            const el = document.getElementById(def.id);
+            if (el) result.push(def);
+        } else {
+            const el = document.getElementById(def.id);
+            if (el && el.style.display !== 'none') result.push(def);
+        }
+    }
+    return result;
+}
+
+function buildSectionSidebar() {
+    const existing = document.querySelector('.section-sidebar');
+    if (existing) existing.remove();
+
+    const activeDefs = getActiveSectionDefs();
+    if (activeDefs.length === 0) return;
+
+    const container = document.querySelector('.preview-container');
+
+    const sidebar = document.createElement('div');
+    sidebar.className = 'section-sidebar';
+
+    const title = document.createElement('div');
+    title.className = 'sidebar-title';
+    title.textContent = 'Section Order';
+    sidebar.appendChild(title);
+
+    const headerItem = document.createElement('div');
+    headerItem.className = 'sidebar-item sidebar-item-fixed';
+    const headerHandle = document.createElement('span');
+    headerHandle.className = 'sidebar-drag-handle';
+    headerHandle.textContent = '\u2261';
+    headerHandle.style.visibility = 'hidden';
+    const headerLabel = document.createElement('span');
+    headerLabel.className = 'sidebar-item-label';
+    headerLabel.textContent = 'Header';
+    headerItem.appendChild(headerHandle);
+    headerItem.appendChild(headerLabel);
+    sidebar.appendChild(headerItem);
+
+    const list = document.createElement('div');
+    list.className = 'sidebar-list';
+
+    activeDefs.forEach(def => {
+        const item = document.createElement('div');
+        item.className = 'sidebar-item';
+        item.draggable = true;
+        item.dataset.sectionId = def.id;
+        if (def.isCustomEntry) {
+            item.dataset.isCustomEntry = 'true';
+            item.dataset.label = def.label;
+        }
+
+        const handle = document.createElement('span');
+        handle.className = 'sidebar-drag-handle';
+        handle.textContent = '\u2261';
+
+        const label = document.createElement('span');
+        label.className = 'sidebar-item-label';
+        label.textContent = def.label;
+
+        item.appendChild(handle);
+        item.appendChild(label);
+        list.appendChild(item);
+    });
+
+    sidebar.appendChild(list);
+    container.appendChild(sidebar);
+    container.classList.add('has-sidebar');
+
+    initSidebarDragAndDrop(list);
+}
+
+function initSidebarDragAndDrop(list) {
+    let draggedItem = null;
+
+    list.addEventListener('dragstart', (e) => {
+        draggedItem = e.target.closest('.sidebar-item');
+        if (!draggedItem) return;
+        draggedItem.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+    });
+
+    list.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (!draggedItem) return;
+        const afterElement = getDragAfterElement(list, e.clientY);
+        if (afterElement) {
+            list.insertBefore(draggedItem, afterElement);
+        } else {
+            list.appendChild(draggedItem);
+        }
+    });
+
+    list.addEventListener('dragend', () => {
+        if (!draggedItem) return;
+        draggedItem.classList.remove('dragging');
+        draggedItem = null;
+
+        const items = list.querySelectorAll('.sidebar-item');
+        const newOrder = [];
+        items.forEach(item => {
+            const id = item.dataset.sectionId;
+            if (item.dataset.isCustomEntry === 'true') {
+                newOrder.push({
+                    id: id,
+                    label: item.dataset.label,
+                    isCustomEntry: true,
+                });
+            } else {
+                const def = DEFAULT_SECTION_DEFS.find(d => d.id === id);
+                if (def) newOrder.push(def);
+            }
+        });
+        sectionOrder = newOrder;
+        reRenderWithCurrentOrder();
+    });
+}
+
+function getDragAfterElement(container, y) {
+    const items = [...container.querySelectorAll('.sidebar-item:not(.dragging)')];
+    return items.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+            return { offset, element: child };
+        }
+        return closest;
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
 // ============================================================
@@ -769,7 +1554,7 @@ const AI_SYSTEM_PROMPT = `You are a resume tailoring expert. Given a resume in Y
 
 Rules:
 - Return ONLY valid YAML. No markdown fences, no explanations, no extra text.
-- Preserve the exact YAML schema: name, contact, work_experience (with company, title, location, dates, tagline, responsibilities), education (with institution, location, graduation_date, details), skills (with technologies, hard_skills, language_skills).
+- Preserve the exact YAML schema: name, contact, work_experience (with company, title, location, dates, tagline, responsibilities), education (with institution, location, graduation_date, details), projects (with name, description, link, tools), awards (with name, awarder, date, summary), publications (with title, publisher, date, link, summary), custom_sections (with heading, content), skills (with technologies, hard_skills, language_skills).
 - Tailor the responsibilities and skills to match the job description.
 - Keep it truthful - rephrase and emphasize existing experience, do NOT fabricate new experience.
 - Optimize keywords from the job description into the resume naturally.
@@ -922,20 +1707,21 @@ async function generateAiResume() {
 // PDF Download
 // ============================================================
 function downloadPDF() {
-    const resumePage = document.getElementById('resume-page');
     const renderTarget = document.getElementById('resume-render-target');
     renderTarget.style.position = 'static';
     renderTarget.style.left = 'auto';
 
     const filename = lastResumeData?.name ? `${lastResumeData.name} Resume.pdf` : 'Resume.pdf';
 
+    // Render the entire render target; each .resume-page is exactly 11in tall,
+    // so html2pdf naturally creates one PDF page per .resume-page
     html2pdf().set({
         margin: 0,
         filename: filename,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, logging: false },
         jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
-    }).from(resumePage).save().then(() => {
+    }).from(renderTarget).save().then(() => {
         renderTarget.style.position = 'absolute';
         renderTarget.style.left = '-9999px';
     });
@@ -959,44 +1745,103 @@ function printResume() {
 function loadExample() {
     document.getElementById('jobs-container').textContent = '';
     document.getElementById('education-container').textContent = '';
+    document.getElementById('projects-container').textContent = '';
+    document.getElementById('awards-container').textContent = '';
+    document.getElementById('publications-container').textContent = '';
+    document.getElementById('custom-sections-container').textContent = '';
     jobCounter = 0;
     eduCounter = 0;
+    projectCounter = 0;
+    awardCounter = 0;
+    publicationCounter = 0;
+    customSectionCounter = 0;
 
-    document.getElementById('name').value = 'Jane Smith';
-    document.getElementById('email').value = 'jane.smith@email.com';
-    document.getElementById('phone').value = '(555) 987-6543';
-    document.getElementById('location').value = 'San Francisco, CA';
-    document.getElementById('linkedin').value = 'https://linkedin.com/in/janesmith';
-    document.getElementById('github').value = 'https://github.com/janesmith';
+    document.getElementById('name').value = 'Dwight K. Schrute III';
+    document.getElementById('email').value = 'dschrute@schrutefarms.com';
+    document.getElementById('phone').value = '(570) 555-1212';
+    document.getElementById('location').value = 'Scranton, PA';
+    document.getElementById('linkedin').value = '';
+    document.getElementById('github').value = '';
 
     addJobEntry({
-        company: 'TECH INNOVATIONS INC.',
-        title: 'Senior Software Engineer',
-        location: 'San Francisco, CA',
-        dates: 'March 2021 - Present',
-        tagline: 'A fast-growing SaaS company building next-generation developer tools for enterprise teams.',
-        responsibilities: 'Architected and deployed a microservices platform handling 50M+ API calls daily, improving system reliability to 99.99% uptime\nLed a cross-functional team of 8 engineers through an agile migration, reducing sprint cycle time by 35%\nDesigned and implemented a real-time data pipeline using Kafka and PostgreSQL, cutting report generation time from 4 hours to 12 minutes\nMentored 4 junior developers through structured code reviews and pair programming sessions',
+        company: 'Dunder Mifflin',
+        title: 'Regional Manager',
+        location: 'Scranton, PA',
+        dates: 'May 2013 - Present',
+        tagline: '',
+        responsibilities: 'Maintained the highest sales average, despite the weak economy and obsolete product.\nManaged, inspired, and protected the Scranton branch from criminals and raccoons.\nLed the office to obtain immeasurable success and glory.',
     });
 
     addJobEntry({
-        company: 'DATAFLOW SYSTEMS',
-        title: 'Software Engineer',
-        location: 'Austin, TX',
-        dates: 'June 2018 - February 2021',
-        tagline: 'A mid-size analytics company providing business intelligence solutions to Fortune 500 clients.',
-        responsibilities: 'Built a customer-facing dashboard using React and D3.js, increasing user engagement by 45%\nOptimized database queries and implemented caching strategies, reducing average page load time by 60%\nDeveloped automated testing suite with 95% code coverage using Jest and Cypress\nCollaborated with product managers to define technical requirements for 12 major feature releases',
+        company: 'Dunder Mifflin',
+        title: 'Assistant (to the) Regional Manager',
+        location: 'Scranton, PA',
+        dates: 'Mar 2008 - Mar 2013',
+        tagline: '',
+        responsibilities: 'Closed more sales with revenues totaling more profit than any other employee - past, present, and future (projected).\nServed as self-appointed enforcer of The Rules (policies and procedures manual).\nInstituted "Schrute Bucks" reward system, immeasurably raising office morale.',
+    });
+
+    addJobEntry({
+        company: 'Staples',
+        title: "Sale's Associate",
+        location: 'Scranton, PA',
+        dates: 'Mar 2008 - Mar 2008',
+        tagline: '',
+        responsibilities: 'Became the top salesman of the store within a one-month timespan.\nMade a record-high sales figure despite having an unfunny boss.\nProvided extraordinary and exceptional customer service to the masses.',
+    });
+
+    addJobEntry({
+        company: 'Dunder Mifflin',
+        title: 'Assistant (to the) Regional Manager',
+        location: 'Scranton, PA',
+        dates: 'Mar 2005 - Mar 2008',
+        tagline: '',
+        responsibilities: "Acted as Regional Manager's eyes, ears, and right hand, overseeing and reporting on employee conduct, productivity, and arrival/departure times.\nProvided services to the office such as martial arts and surveillance.\nIntroduced new linen paper lines into the market, often closing sight-unseen sales of newly released products.",
     });
 
     addEducationEntry({
-        institution: 'University of California, Berkeley',
-        location: 'Berkeley, CA',
-        graduation_date: 'May 2018',
-        details: 'Bachelor of Science in Computer Science | Dean\'s List 2016-2018 | GPA: 3.85',
+        institution: 'Scranton University',
+        location: 'Scranton, PA',
+        graduation_date: '1998',
+        details: 'BA Business Administration',
     });
 
-    document.getElementById('technologies').value = 'Python, JavaScript, TypeScript, React, Node.js, PostgreSQL, Docker, Kubernetes, AWS, Git, Kafka, Redis';
-    document.getElementById('hard-skills').value = 'System Design, Microservices Architecture, Agile/Scrum, Technical Leadership, CI/CD, Performance Optimization';
-    document.getElementById('language-skills').value = 'Fluent in English and Spanish';
+    addProjectEntry({
+        name: 'Schrute Farms (Bed and Breakfast)',
+        description: 'A beautiful resort that provides fun activities like tablemaking and mattress making.',
+        link: '',
+        tools: '',
+    });
+
+    addProjectEntry({
+        name: "Dwight Schrute's Gym for Muscles",
+        description: 'A built-in gym inside the Dunder Mifflin office that will make you shredded.',
+        link: '',
+        tools: '',
+    });
+
+    addProjectEntry({
+        name: 'Sesame Avenue Daycare Center for Infants and Toddlers',
+        description: 'A great daycare for infants with a focus on cognitive development.',
+        link: '',
+        tools: '',
+    });
+
+    addAwardEntry({
+        name: 'Salesman of the Month',
+        awarder: 'Dunder Mifflin',
+        date: '2005',
+        summary: '13-time award winner - honored for having the most sales of the month.',
+    });
+
+    addCustomSectionEntry({
+        heading: 'Interests & Hobbies',
+        content: 'Beet farming\nIdentity theft investigation\nSurvival skills and wilderness training\nBattlestar Galactica',
+    });
+
+    document.getElementById('technologies').value = '';
+    document.getElementById('hard-skills').value = 'Hardworking, Alpha Male, Jackhammer, Merciless, Insatiable';
+    document.getElementById('language-skills').value = 'Karate (Purple Belt), Jujitsu, Werewolf hunting, Table Making';
 
     saveToLocalStorage();
 }
@@ -1188,6 +2033,26 @@ function restoreFromLocalStorage() {
             document.getElementById('education-container').textContent = '';
             eduCounter = 0;
             data.education.forEach(edu => addEducationEntry(edu));
+        }
+        if (data.projects && data.projects.length > 0) {
+            document.getElementById('projects-container').textContent = '';
+            projectCounter = 0;
+            data.projects.forEach(project => addProjectEntry(project));
+        }
+        if (data.awards && data.awards.length > 0) {
+            document.getElementById('awards-container').textContent = '';
+            awardCounter = 0;
+            data.awards.forEach(award => addAwardEntry(award));
+        }
+        if (data.publications && data.publications.length > 0) {
+            document.getElementById('publications-container').textContent = '';
+            publicationCounter = 0;
+            data.publications.forEach(pub => addPublicationEntry(pub));
+        }
+        if (data.custom_sections && data.custom_sections.length > 0) {
+            document.getElementById('custom-sections-container').textContent = '';
+            customSectionCounter = 0;
+            data.custom_sections.forEach(section => addCustomSectionEntry(section));
         }
         if (data.skills) {
             if (data.skills.technologies) document.getElementById('technologies').value = data.skills.technologies.join(', ');
