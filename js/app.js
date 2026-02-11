@@ -1578,6 +1578,7 @@ function buildSectionSidebar() {
         if (pageCount > 1) {
             const divider = document.createElement('div');
             divider.className = 'sidebar-page-divider';
+            divider.dataset.page = p;
             divider.textContent = 'Page ' + p;
             list.appendChild(divider);
         }
@@ -1586,6 +1587,7 @@ function buildSectionSidebar() {
         if (p === 1) {
             const headerItem = document.createElement('div');
             headerItem.className = 'sidebar-item sidebar-item-fixed';
+            headerItem.dataset.page = '1';
             const headerHandle = document.createElement('span');
             headerHandle.className = 'sidebar-drag-handle';
             headerHandle.textContent = '\u2261';
@@ -1604,6 +1606,7 @@ function buildSectionSidebar() {
             item.className = 'sidebar-item';
             item.draggable = true;
             item.dataset.sectionId = def.id;
+            item.dataset.page = String(p);
             if (def.isCustomEntry) {
                 item.dataset.isCustomEntry = 'true';
                 item.dataset.label = def.label;
@@ -1683,11 +1686,20 @@ function initSidebarDragAndDrop(list) {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         if (!draggedItem) return;
-        const afterElement = getDragAfterElement(list, e.clientY);
+
+        const draggedPage = draggedItem.dataset.page;
+        const afterElement = getDragAfterElement(list, e.clientY, draggedPage);
+
         if (afterElement) {
             list.insertBefore(draggedItem, afterElement);
         } else {
-            list.appendChild(draggedItem);
+            // No same-page item below cursor — place at end of the page group
+            const nextBoundary = getNextPageBoundary(list, draggedPage);
+            if (nextBoundary) {
+                list.insertBefore(draggedItem, nextBoundary);
+            } else {
+                list.appendChild(draggedItem);
+            }
         }
     });
 
@@ -1717,8 +1729,20 @@ function initSidebarDragAndDrop(list) {
     });
 }
 
-function getDragAfterElement(container, y) {
-    const items = [...container.querySelectorAll('.sidebar-item:not(.dragging)')];
+function getNextPageBoundary(list, page) {
+    const pageNum = parseInt(page);
+    const dividers = list.querySelectorAll('.sidebar-page-divider');
+    for (const div of dividers) {
+        if (parseInt(div.dataset.page) > pageNum) return div;
+    }
+    return null;
+}
+
+function getDragAfterElement(container, y, constrainToPage) {
+    let items = [...container.querySelectorAll('.sidebar-item:not(.dragging):not(.sidebar-item-fixed)')];
+    if (constrainToPage) {
+        items = items.filter(item => item.dataset.page === constrainToPage);
+    }
     return items.reduce((closest, child) => {
         const box = child.getBoundingClientRect();
         const offset = y - box.top - box.height / 2;
