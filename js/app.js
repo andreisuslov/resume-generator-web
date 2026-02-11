@@ -1637,8 +1637,9 @@ function buildSectionSidebar() {
                     if (pageLayoutMode === 'auto') {
                         pageLayoutMode = 'manual';
                         targetPageCount = Math.max(pageCount, newPage);
-                        sectionPageAssignments = { ...computedPageAssignments };
                     }
+                    // Pin all current positions before changing one
+                    sectionPageAssignments = { ...computedPageAssignments };
                     sectionPageAssignments[def.id] = newPage;
                     if (targetPageCount !== null && newPage > targetPageCount) {
                         targetPageCount = newPage;
@@ -1958,8 +1959,9 @@ function buildMobileReorderSheet() {
                     if (pageLayoutMode === 'auto') {
                         pageLayoutMode = 'manual';
                         targetPageCount = Math.max(pageCount, newPage);
-                        sectionPageAssignments = { ...computedPageAssignments };
                     }
+                    // Pin all current positions before changing one
+                    sectionPageAssignments = { ...computedPageAssignments };
                     sectionPageAssignments[def.id] = newPage;
                     if (targetPageCount !== null && newPage > targetPageCount) {
                         targetPageCount = newPage;
