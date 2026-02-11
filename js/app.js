@@ -1422,7 +1422,9 @@ function reRenderWithCurrentOrder() {
     staging.style.position = 'static';
     staging.style.left = 'auto';
 
-    reorderStagingDOM(sectionOrder);
+    if (sectionOrder) {
+        reorderStagingDOM(sectionOrder);
+    }
 
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
