@@ -19,6 +19,8 @@ let pageLayoutMode = 'auto';         // 'auto' | 'manual'
 let targetPageCount = null;          // null = auto, or 1/2/3
 let sectionPageAssignments = {};     // { sectionId: pageNumber }
 let resizeTimeout = null;            // Debounce timer for resize handler
+let computedPageAssignments = {};    // { sectionId: pageNumber } — result of last pagination
+let textShrinkPercent = 100;         // 50-100, text scale percentage
 
 const DEFAULT_SECTION_DEFS = [
     { id: 'rp-work-section', entryClass: 'rp-job', label: 'Work Experience' },
@@ -100,6 +102,9 @@ document.addEventListener('DOMContentLoaded', () => {
         pageLayoutMode = 'auto';
         targetPageCount = null;
         sectionPageAssignments = {};
+        computedPageAssignments = {};
+        textShrinkPercent = 100;
+        document.documentElement.style.setProperty('--text-scale', '1');
         const sidebar = document.querySelector('.section-sidebar');
         if (sidebar) sidebar.remove();
         const previewContainer = document.querySelector('.preview-container');
@@ -804,6 +809,9 @@ function renderResumeFromData(data) {
     pageLayoutMode = 'auto';
     targetPageCount = null;
     sectionPageAssignments = {};
+    computedPageAssignments = {};
+    textShrinkPercent = 100;
+    document.documentElement.style.setProperty('--text-scale', '1');
 
     const staging = document.getElementById('resume-staging');
     const renderTarget = document.getElementById('resume-render-target');
@@ -1235,6 +1243,16 @@ function paginateAutomatic(groups, stagingRect, USABLE_HEIGHT, renderTarget) {
         pages[pages.length - 1].push(group);
     }
 
+    // Record which page each section ended up on
+    computedPageAssignments = {};
+    pages.forEach((pageGroups, pageIdx) => {
+        pageGroups.forEach(group => {
+            if (!(group.sectionId in computedPageAssignments)) {
+                computedPageAssignments[group.sectionId] = pageIdx + 1;
+            }
+        });
+    });
+
     buildPageDOMs(pages, renderTarget);
 }
 
@@ -1287,6 +1305,16 @@ function paginateManual(groups, stagingRect, USABLE_HEIGHT, renderTarget) {
     while (finalPages.length < targetPageCount) {
         finalPages.push([]);
     }
+
+    // Record which page each section ended up on
+    computedPageAssignments = {};
+    finalPages.forEach((pageGroups, pageIdx) => {
+        pageGroups.forEach(group => {
+            if (!(group.sectionId in computedPageAssignments)) {
+                computedPageAssignments[group.sectionId] = pageIdx + 1;
+            }
+        });
+    });
 
     buildPageDOMs(finalPages, renderTarget);
     updateOverflowWarning(finalPages.length > targetPageCount);
@@ -1438,6 +1466,8 @@ function reRenderWithCurrentOrder() {
 
             requestAnimationFrame(() => {
                 showPreview();
+                buildSectionSidebar();
+                buildMobileReorderSheet();
 
                 renderTarget.style.position = 'absolute';
                 renderTarget.style.left = '-9999px';
@@ -1481,7 +1511,6 @@ function buildSectionSidebar() {
     if (activeDefs.length === 0) return;
 
     const container = document.querySelector('.preview-container');
-
     const sidebar = document.createElement('div');
     sidebar.className = 'section-sidebar';
 
@@ -1493,67 +1522,107 @@ function buildSectionSidebar() {
     title.textContent = 'Section Order';
     sidebar.appendChild(title);
 
-    const headerItem = document.createElement('div');
-    headerItem.className = 'sidebar-item sidebar-item-fixed';
-    const headerHandle = document.createElement('span');
-    headerHandle.className = 'sidebar-drag-handle';
-    headerHandle.textContent = '\u2261';
-    headerHandle.style.visibility = 'hidden';
-    const headerLabel = document.createElement('span');
-    headerLabel.className = 'sidebar-item-label';
-    headerLabel.textContent = 'Header';
-    headerItem.appendChild(headerHandle);
-    headerItem.appendChild(headerLabel);
-    sidebar.appendChild(headerItem);
+    // Determine page count from rendered output
+    const pageCount = document.querySelectorAll('#resume-render-target .resume-page').length || 1;
+
+    // Group sections by their computed page
+    const pageGroups = {};
+    for (let p = 1; p <= pageCount; p++) pageGroups[p] = [];
+    activeDefs.forEach(def => {
+        const page = computedPageAssignments[def.id] || 1;
+        const clamped = Math.min(Math.max(page, 1), pageCount);
+        if (!pageGroups[clamped]) pageGroups[clamped] = [];
+        pageGroups[clamped].push(def);
+    });
 
     const list = document.createElement('div');
     list.className = 'sidebar-list';
 
-    activeDefs.forEach(def => {
-        const item = document.createElement('div');
-        item.className = 'sidebar-item';
-        item.draggable = true;
-        item.dataset.sectionId = def.id;
-        if (def.isCustomEntry) {
-            item.dataset.isCustomEntry = 'true';
-            item.dataset.label = def.label;
+    // Max pages for dropdown options
+    const maxPageOption = Math.max(pageCount, targetPageCount || 0, 3);
+
+    for (let p = 1; p <= pageCount; p++) {
+        // Page divider
+        if (pageCount > 1) {
+            const divider = document.createElement('div');
+            divider.className = 'sidebar-page-divider';
+            divider.textContent = 'Page ' + p;
+            list.appendChild(divider);
         }
 
-        const handle = document.createElement('span');
-        handle.className = 'sidebar-drag-handle';
-        handle.textContent = '\u2261';
+        // Header item on page 1
+        if (p === 1) {
+            const headerItem = document.createElement('div');
+            headerItem.className = 'sidebar-item sidebar-item-fixed';
+            const headerHandle = document.createElement('span');
+            headerHandle.className = 'sidebar-drag-handle';
+            headerHandle.textContent = '\u2261';
+            headerHandle.style.visibility = 'hidden';
+            const headerLabel = document.createElement('span');
+            headerLabel.className = 'sidebar-item-label';
+            headerLabel.textContent = 'Header';
+            headerItem.appendChild(headerHandle);
+            headerItem.appendChild(headerLabel);
+            list.appendChild(headerItem);
+        }
 
-        const label = document.createElement('span');
-        label.className = 'sidebar-item-label';
-        label.textContent = def.label;
-
-        item.appendChild(handle);
-        item.appendChild(label);
-
-        // Page select dropdown (manual mode)
-        if (pageLayoutMode === 'manual' && targetPageCount !== null) {
-            const select = document.createElement('select');
-            select.className = 'sidebar-page-select';
-            for (let p = 1; p <= targetPageCount; p++) {
-                const opt = document.createElement('option');
-                opt.value = p;
-                opt.textContent = 'P' + p;
-                select.appendChild(opt);
+        // Section items for this page
+        (pageGroups[p] || []).forEach(def => {
+            const item = document.createElement('div');
+            item.className = 'sidebar-item';
+            item.draggable = true;
+            item.dataset.sectionId = def.id;
+            if (def.isCustomEntry) {
+                item.dataset.isCustomEntry = 'true';
+                item.dataset.label = def.label;
             }
-            select.value = sectionPageAssignments[def.id] || 1;
-            select.addEventListener('change', () => {
-                sectionPageAssignments[def.id] = parseInt(select.value);
-                reRenderWithCurrentOrder();
-            });
-            item.appendChild(select);
-        }
 
-        list.appendChild(item);
-    });
+            const handle = document.createElement('span');
+            handle.className = 'sidebar-drag-handle';
+            handle.textContent = '\u2261';
+
+            const label = document.createElement('span');
+            label.className = 'sidebar-item-label';
+            label.textContent = def.label;
+
+            item.appendChild(handle);
+            item.appendChild(label);
+
+            // Page select dropdown (shown when >1 page)
+            if (pageCount > 1 || (pageLayoutMode === 'manual' && targetPageCount > 1)) {
+                const select = document.createElement('select');
+                select.className = 'sidebar-page-select';
+                for (let pp = 1; pp <= maxPageOption; pp++) {
+                    const opt = document.createElement('option');
+                    opt.value = pp;
+                    opt.textContent = 'P' + pp;
+                    select.appendChild(opt);
+                }
+                select.value = computedPageAssignments[def.id] || 1;
+                select.addEventListener('change', () => {
+                    const newPage = parseInt(select.value);
+                    // Auto-switch to manual mode
+                    if (pageLayoutMode === 'auto') {
+                        pageLayoutMode = 'manual';
+                        targetPageCount = Math.max(pageCount, newPage);
+                        sectionPageAssignments = { ...computedPageAssignments };
+                    }
+                    sectionPageAssignments[def.id] = newPage;
+                    if (targetPageCount !== null && newPage > targetPageCount) {
+                        targetPageCount = newPage;
+                    }
+                    reRenderWithCurrentOrder();
+                });
+                item.appendChild(select);
+            }
+
+            list.appendChild(item);
+        });
+    }
 
     sidebar.appendChild(list);
 
-    // Overflow warning (after list)
+    // Overflow warning
     const warning = document.createElement('div');
     warning.className = 'sidebar-overflow-warning';
     warning.id = 'sidebar-overflow-warning';
@@ -1594,6 +1663,7 @@ function initSidebarDragAndDrop(list) {
         draggedItem.classList.remove('dragging');
         draggedItem = null;
 
+        // Read new order from DOM (skips dividers and fixed header)
         const items = list.querySelectorAll('.sidebar-item');
         const newOrder = [];
         items.forEach(item => {
@@ -1611,7 +1681,6 @@ function initSidebarDragAndDrop(list) {
         });
         sectionOrder = newOrder;
         reRenderWithCurrentOrder();
-        buildMobileReorderSheet();
     });
 }
 
@@ -1654,7 +1723,7 @@ function buildPageControlUI(prefix) {
     modeRow.appendChild(manualBtn);
     wrapper.appendChild(modeRow);
 
-    // Page count selector (only in manual mode)
+    // Page count selector (manual mode)
     if (pageLayoutMode === 'manual') {
         const countRow = document.createElement('div');
         countRow.className = prefix + '-page-count';
@@ -1676,34 +1745,78 @@ function buildPageControlUI(prefix) {
         wrapper.appendChild(countRow);
     }
 
+    // Text size control
+    const shrinkRow = document.createElement('div');
+    shrinkRow.className = prefix + '-shrink-control';
+
+    const shrinkLabel = document.createElement('span');
+    shrinkLabel.className = prefix + '-shrink-label';
+    shrinkLabel.textContent = 'Text:';
+
+    const shrinkDown = document.createElement('button');
+    shrinkDown.type = 'button';
+    shrinkDown.className = prefix + '-shrink-btn';
+    shrinkDown.textContent = 'A\u2212';
+    shrinkDown.addEventListener('click', () => adjustTextSize(-5));
+
+    const shrinkValue = document.createElement('span');
+    shrinkValue.className = prefix + '-shrink-value';
+    shrinkValue.textContent = textShrinkPercent + '%';
+
+    const shrinkUp = document.createElement('button');
+    shrinkUp.type = 'button';
+    shrinkUp.className = prefix + '-shrink-btn';
+    shrinkUp.textContent = 'A+';
+    shrinkUp.addEventListener('click', () => adjustTextSize(5));
+
+    const shrinkReset = document.createElement('button');
+    shrinkReset.type = 'button';
+    shrinkReset.className = prefix + '-shrink-btn';
+    shrinkReset.textContent = 'Reset';
+    shrinkReset.style.display = textShrinkPercent === 100 ? 'none' : '';
+    shrinkReset.addEventListener('click', () => {
+        textShrinkPercent = 100;
+        document.documentElement.style.setProperty('--text-scale', '1');
+        reRenderWithCurrentOrder();
+    });
+
+    shrinkRow.appendChild(shrinkLabel);
+    shrinkRow.appendChild(shrinkDown);
+    shrinkRow.appendChild(shrinkValue);
+    shrinkRow.appendChild(shrinkUp);
+    shrinkRow.appendChild(shrinkReset);
+    wrapper.appendChild(shrinkRow);
+
     return wrapper;
+}
+
+function adjustTextSize(delta) {
+    textShrinkPercent = Math.max(50, Math.min(100, textShrinkPercent + delta));
+    document.documentElement.style.setProperty('--text-scale', textShrinkPercent / 100);
+    reRenderWithCurrentOrder();
 }
 
 function setPageLayoutMode(mode) {
     pageLayoutMode = mode;
     if (mode === 'manual' && targetPageCount === null) {
-        // Default to current auto page count
         const currentPages = document.querySelectorAll('#resume-render-target .resume-page').length;
         targetPageCount = Math.max(1, Math.min(currentPages, 3));
+        // Copy computed assignments as starting point
+        sectionPageAssignments = { ...computedPageAssignments };
     }
     if (mode === 'auto') {
         sectionPageAssignments = {};
     }
-    buildSectionSidebar();
-    buildMobileReorderSheet();
     reRenderWithCurrentOrder();
 }
 
 function setTargetPageCount(n) {
     targetPageCount = n;
-    // Clamp existing assignments
     for (const key in sectionPageAssignments) {
         if (sectionPageAssignments[key] > n) {
             sectionPageAssignments[key] = n;
         }
     }
-    buildSectionSidebar();
-    buildMobileReorderSheet();
     reRenderWithCurrentOrder();
 }
 
@@ -1725,70 +1838,111 @@ function buildMobileReorderSheet() {
     const activeDefs = getActiveSectionDefs();
     if (activeDefs.length === 0) return;
 
-    // Page control UI (same as sidebar)
+    // Page control UI
     content.appendChild(buildPageControlUI('mobile-reorder'));
 
-    // Fixed header item
-    const headerItem = document.createElement('div');
-    headerItem.className = 'mobile-reorder-item mobile-reorder-item-fixed';
-    const headerLabel = document.createElement('span');
-    headerLabel.className = 'mobile-reorder-item-label';
-    headerLabel.textContent = 'Header';
-    headerItem.appendChild(headerLabel);
-    content.appendChild(headerItem);
+    // Determine page count
+    const pageCount = document.querySelectorAll('#resume-render-target .resume-page').length || 1;
 
-    // Movable section items
-    activeDefs.forEach((def, idx) => {
-        const item = document.createElement('div');
-        item.className = 'mobile-reorder-item';
-        item.dataset.sectionId = def.id;
-        if (def.isCustomEntry) {
-            item.dataset.isCustomEntry = 'true';
-            item.dataset.label = def.label;
-        }
-
-        const upBtn = document.createElement('button');
-        upBtn.type = 'button';
-        upBtn.className = 'mobile-reorder-arrow';
-        upBtn.textContent = '\u25B2';
-        upBtn.disabled = idx === 0;
-        upBtn.addEventListener('click', () => mobileMoveSectionUp(item));
-
-        const downBtn = document.createElement('button');
-        downBtn.type = 'button';
-        downBtn.className = 'mobile-reorder-arrow';
-        downBtn.textContent = '\u25BC';
-        downBtn.disabled = idx === activeDefs.length - 1;
-        downBtn.addEventListener('click', () => mobileMoveSectionDown(item));
-
-        const label = document.createElement('span');
-        label.className = 'mobile-reorder-item-label';
-        label.textContent = def.label;
-
-        item.appendChild(upBtn);
-        item.appendChild(label);
-        item.appendChild(downBtn);
-
-        // Page select (manual mode)
-        if (pageLayoutMode === 'manual' && targetPageCount !== null) {
-            const select = document.createElement('select');
-            select.className = 'mobile-reorder-page-select';
-            for (let p = 1; p <= targetPageCount; p++) {
-                const opt = document.createElement('option');
-                opt.value = p;
-                opt.textContent = 'P' + p;
-                select.appendChild(opt);
-            }
-            select.value = sectionPageAssignments[def.id] || 1;
-            select.addEventListener('change', () => {
-                sectionPageAssignments[def.id] = parseInt(select.value);
-                reRenderWithCurrentOrder();
-            });
-            item.appendChild(select);
-        }
-
-        content.appendChild(item);
+    // Group sections by computed page
+    const pageGroups = {};
+    for (let p = 1; p <= pageCount; p++) pageGroups[p] = [];
+    activeDefs.forEach(def => {
+        const page = computedPageAssignments[def.id] || 1;
+        const clamped = Math.min(Math.max(page, 1), pageCount);
+        if (!pageGroups[clamped]) pageGroups[clamped] = [];
+        pageGroups[clamped].push(def);
     });
+
+    const maxPageOption = Math.max(pageCount, targetPageCount || 0, 3);
+    let flatIdx = 0;
+    const totalMovable = activeDefs.length;
+
+    for (let p = 1; p <= pageCount; p++) {
+        // Page divider
+        if (pageCount > 1) {
+            const divider = document.createElement('div');
+            divider.className = 'mobile-reorder-page-divider';
+            divider.textContent = 'Page ' + p;
+            content.appendChild(divider);
+        }
+
+        // Header on page 1
+        if (p === 1) {
+            const headerItem = document.createElement('div');
+            headerItem.className = 'mobile-reorder-item mobile-reorder-item-fixed';
+            const headerLabel = document.createElement('span');
+            headerLabel.className = 'mobile-reorder-item-label';
+            headerLabel.textContent = 'Header';
+            headerItem.appendChild(headerLabel);
+            content.appendChild(headerItem);
+        }
+
+        // Section items
+        (pageGroups[p] || []).forEach(def => {
+            const item = document.createElement('div');
+            item.className = 'mobile-reorder-item';
+            item.dataset.sectionId = def.id;
+            if (def.isCustomEntry) {
+                item.dataset.isCustomEntry = 'true';
+                item.dataset.label = def.label;
+            }
+
+            const currentIdx = flatIdx;
+
+            const upBtn = document.createElement('button');
+            upBtn.type = 'button';
+            upBtn.className = 'mobile-reorder-arrow';
+            upBtn.textContent = '\u25B2';
+            upBtn.disabled = currentIdx === 0;
+            upBtn.addEventListener('click', () => mobileMoveSectionUp(item));
+
+            const downBtn = document.createElement('button');
+            downBtn.type = 'button';
+            downBtn.className = 'mobile-reorder-arrow';
+            downBtn.textContent = '\u25BC';
+            downBtn.disabled = currentIdx === totalMovable - 1;
+            downBtn.addEventListener('click', () => mobileMoveSectionDown(item));
+
+            const label = document.createElement('span');
+            label.className = 'mobile-reorder-item-label';
+            label.textContent = def.label;
+
+            item.appendChild(upBtn);
+            item.appendChild(label);
+            item.appendChild(downBtn);
+
+            // Page select
+            if (pageCount > 1 || (pageLayoutMode === 'manual' && targetPageCount > 1)) {
+                const select = document.createElement('select');
+                select.className = 'mobile-reorder-page-select';
+                for (let pp = 1; pp <= maxPageOption; pp++) {
+                    const opt = document.createElement('option');
+                    opt.value = pp;
+                    opt.textContent = 'P' + pp;
+                    select.appendChild(opt);
+                }
+                select.value = computedPageAssignments[def.id] || 1;
+                select.addEventListener('change', () => {
+                    const newPage = parseInt(select.value);
+                    if (pageLayoutMode === 'auto') {
+                        pageLayoutMode = 'manual';
+                        targetPageCount = Math.max(pageCount, newPage);
+                        sectionPageAssignments = { ...computedPageAssignments };
+                    }
+                    sectionPageAssignments[def.id] = newPage;
+                    if (targetPageCount !== null && newPage > targetPageCount) {
+                        targetPageCount = newPage;
+                    }
+                    reRenderWithCurrentOrder();
+                });
+                item.appendChild(select);
+            }
+
+            content.appendChild(item);
+            flatIdx++;
+        });
+    }
 
     // Overflow warning
     const warning = document.createElement('div');
@@ -1800,17 +1954,26 @@ function buildMobileReorderSheet() {
 }
 
 function mobileMoveSectionUp(item) {
-    const prev = item.previousElementSibling;
-    if (prev && !prev.classList.contains('mobile-reorder-item-fixed') &&
-        !prev.classList.contains('mobile-reorder-page-control')) {
+    let prev = item.previousElementSibling;
+    // Skip page dividers and fixed items
+    while (prev && (prev.classList.contains('mobile-reorder-page-divider') ||
+                    prev.classList.contains('mobile-reorder-item-fixed'))) {
+        prev = prev.previousElementSibling;
+    }
+    if (prev && prev.classList.contains('mobile-reorder-item')) {
         item.parentNode.insertBefore(item, prev);
         applyMobileReorder();
     }
 }
 
 function mobileMoveSectionDown(item) {
-    const next = item.nextElementSibling;
-    if (next && next.classList.contains('mobile-reorder-item')) {
+    let next = item.nextElementSibling;
+    // Skip page dividers
+    while (next && next.classList.contains('mobile-reorder-page-divider')) {
+        next = next.nextElementSibling;
+    }
+    if (next && next.classList.contains('mobile-reorder-item') &&
+        !next.classList.contains('mobile-reorder-item-fixed')) {
         item.parentNode.insertBefore(next, item);
         applyMobileReorder();
     }
@@ -1837,16 +2000,6 @@ function applyMobileReorder() {
 
     sectionOrder = newOrder;
     reRenderWithCurrentOrder();
-    buildSectionSidebar();
-
-    // Update button disabled states
-    const allItems = Array.from(items);
-    allItems.forEach((item, idx) => {
-        const upBtn = item.querySelector('.mobile-reorder-arrow:first-child');
-        const downBtn = item.querySelector('.mobile-reorder-arrow:last-of-type');
-        if (upBtn) upBtn.disabled = idx === 0;
-        if (downBtn) downBtn.disabled = idx === allItems.length - 1;
-    });
 }
 
 // ============================================================
