@@ -15,6 +15,10 @@ let originalYamlForDiff = null; // Base YAML before AI modification
 let diffMode = false;            // Whether diff view is active
 let rediffTimeout = null;        // Debounce timer for re-diffing on edit
 let sectionOrder = null;              // Custom section ordering for drag-and-drop
+let pageLayoutMode = 'auto';         // 'auto' | 'manual'
+let targetPageCount = null;          // null = auto, or 1/2/3
+let sectionPageAssignments = {};     // { sectionId: pageNumber }
+let resizeTimeout = null;            // Debounce timer for resize handler
 
 const DEFAULT_SECTION_DEFS = [
     { id: 'rp-work-section', entryClass: 'rp-job', label: 'Work Experience' },
@@ -93,10 +97,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('start-over-btn').addEventListener('click', () => {
         sectionOrder = null;
+        pageLayoutMode = 'auto';
+        targetPageCount = null;
+        sectionPageAssignments = {};
         const sidebar = document.querySelector('.section-sidebar');
         if (sidebar) sidebar.remove();
         const previewContainer = document.querySelector('.preview-container');
         if (previewContainer) previewContainer.classList.remove('has-sidebar');
+        const mobileSheet = document.getElementById('mobile-reorder-sheet');
+        if (mobileSheet) mobileSheet.classList.remove('expanded');
         showView('home-view');
     });
 
@@ -145,6 +154,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     restoreFromLocalStorage();
+
+    // Debounced resize handler for orientation changes (font consistency)
+    window.addEventListener('resize', () => {
+        if (resizeTimeout) clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+            if (document.getElementById('preview-view').classList.contains('active')) {
+                showPreview();
+            }
+        }, 200);
+    });
+
+    // Mobile reorder sheet toggle
+    document.getElementById('mobile-reorder-toggle').addEventListener('click', () => {
+        document.getElementById('mobile-reorder-sheet').classList.toggle('expanded');
+    });
 });
 
 // ============================================================
@@ -777,6 +801,9 @@ function yamlToData(yamlStr) {
 function renderResumeFromData(data) {
     lastResumeData = data;
     sectionOrder = null;
+    pageLayoutMode = 'auto';
+    targetPageCount = null;
+    sectionPageAssignments = {};
 
     const staging = document.getElementById('resume-staging');
     const renderTarget = document.getElementById('resume-render-target');
@@ -799,6 +826,7 @@ function renderResumeFromData(data) {
             // Show the preview
             showView('preview-view');
             buildSectionSidebar();
+            buildMobileReorderSheet();
 
             // Make render target visible temporarily for preview cloning
             renderTarget.style.position = 'static';
@@ -1175,27 +1203,30 @@ function paginateResume() {
     const renderTarget = document.getElementById('resume-render-target');
     renderTarget.textContent = '';
 
-    // Usable height per page in pixels (11in page minus 0.25in top + 0.25in bottom padding)
     const USABLE_HEIGHT = (11 - 0.5) * 96; // 1008px
 
-    // Collect atomic block groups from the staging area
     const groups = collectBlockGroups(staging);
     if (groups.length === 0) return;
 
-    // Use the staging area's coordinate system for measurement
     const stagingRect = staging.getBoundingClientRect();
 
-    // Distribute groups across pages
+    if (pageLayoutMode === 'manual' && targetPageCount !== null) {
+        paginateManual(groups, stagingRect, USABLE_HEIGHT, renderTarget);
+    } else {
+        paginateAutomatic(groups, stagingRect, USABLE_HEIGHT, renderTarget);
+    }
+}
+
+function paginateAutomatic(groups, stagingRect, USABLE_HEIGHT, renderTarget) {
     const pages = [[]];
     let pageBreakAt = USABLE_HEIGHT;
 
     for (const group of groups) {
-        const firstRect = group[0].getBoundingClientRect();
-        const lastRect = group[group.length - 1].getBoundingClientRect();
+        const firstRect = group.elements[0].getBoundingClientRect();
+        const lastRect = group.elements[group.elements.length - 1].getBoundingClientRect();
         const groupTop = firstRect.top - stagingRect.top;
         const groupBottom = lastRect.bottom - stagingRect.top;
 
-        // If this group doesn't fit on the current page, start a new one
         if (pages[pages.length - 1].length > 0 && groupBottom > pageBreakAt) {
             pages.push([]);
             pageBreakAt = groupTop + USABLE_HEIGHT;
@@ -1204,7 +1235,70 @@ function paginateResume() {
         pages[pages.length - 1].push(group);
     }
 
-    // Build page DOMs
+    buildPageDOMs(pages, renderTarget);
+}
+
+function paginateManual(groups, stagingRect, USABLE_HEIGHT, renderTarget) {
+    // Initialize empty page buckets
+    const pageBuckets = [];
+    for (let i = 0; i < targetPageCount; i++) {
+        pageBuckets.push([]);
+    }
+
+    // Assign each group to its target page
+    for (const group of groups) {
+        let targetPage = 0;
+        if (group.sectionId === 'rp-header') {
+            targetPage = 0;
+        } else if (sectionPageAssignments[group.sectionId] !== undefined) {
+            targetPage = sectionPageAssignments[group.sectionId] - 1;
+        }
+        targetPage = Math.max(0, Math.min(targetPage, pageBuckets.length - 1));
+        pageBuckets[targetPage].push(group);
+    }
+
+    // Check height constraints — if a page overflows, push to next page
+    const finalPages = [];
+
+    for (let p = 0; p < pageBuckets.length; p++) {
+        const bucket = pageBuckets[p];
+        let currentPage = [];
+        let usedHeight = 0;
+
+        for (const group of bucket) {
+            const height = measureGroupHeight(group, stagingRect);
+
+            if (currentPage.length > 0 && usedHeight + height > USABLE_HEIGHT) {
+                finalPages.push(currentPage);
+                currentPage = [];
+                usedHeight = 0;
+            }
+
+            currentPage.push(group);
+            usedHeight += height;
+        }
+
+        if (currentPage.length > 0) {
+            finalPages.push(currentPage);
+        }
+    }
+
+    // Ensure at least targetPageCount pages exist (empty pages if needed)
+    while (finalPages.length < targetPageCount) {
+        finalPages.push([]);
+    }
+
+    buildPageDOMs(finalPages, renderTarget);
+    updateOverflowWarning(finalPages.length > targetPageCount);
+}
+
+function measureGroupHeight(group, stagingRect) {
+    const firstRect = group.elements[0].getBoundingClientRect();
+    const lastRect = group.elements[group.elements.length - 1].getBoundingClientRect();
+    return lastRect.bottom - firstRect.top;
+}
+
+function buildPageDOMs(pages, renderTarget) {
     for (const pageGroups of pages) {
         const pageEl = document.createElement('div');
         pageEl.className = 'resume-page';
@@ -1213,7 +1307,7 @@ function paginateResume() {
         content.className = 'resume-page-content';
 
         for (const group of pageGroups) {
-            for (const el of group) {
+            for (const el of group.elements) {
                 const clone = el.cloneNode(true);
                 clone.removeAttribute('id');
                 clone.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
@@ -1221,7 +1315,6 @@ function paginateResume() {
             }
         }
 
-        // Remove top margin from first child to avoid wasted space at page top
         if (content.firstChild) {
             content.firstChild.style.marginTop = '0';
         }
@@ -1234,13 +1327,11 @@ function paginateResume() {
 function collectBlockGroups(staging) {
     const groups = [];
 
-    // Header is always its own group
     const header = staging.querySelector('.rp-header');
     if (header) {
-        groups.push([header]);
+        groups.push({ elements: [header], sectionId: 'rp-header' });
     }
 
-    // Sections with individual entries
     const sectionDefs = sectionOrder || DEFAULT_SECTION_DEFS;
 
     for (const def of sectionDefs) {
@@ -1248,15 +1339,22 @@ function collectBlockGroups(staging) {
         if (!section || section.style.display === 'none') continue;
 
         if (!def.entryClass) {
-            // Treat entire section as one group (e.g. skills)
-            groups.push([section]);
+            groups.push({ elements: [section], sectionId: def.id });
             continue;
         }
 
-        // Custom sections: each entry is a self-contained block (has its own title)
         if (def.isCustom) {
             const entries = Array.from(section.querySelectorAll('.' + def.entryClass));
-            entries.forEach(entry => groups.push([entry]));
+            entries.forEach(entry => {
+                const sid = entry.id || def.id;
+                groups.push({ elements: [entry], sectionId: sid });
+            });
+            continue;
+        }
+
+        if (def.isCustomEntry) {
+            const el = document.getElementById(def.id);
+            if (el) groups.push({ elements: [el], sectionId: def.id });
             continue;
         }
 
@@ -1265,12 +1363,10 @@ function collectBlockGroups(staging) {
 
         if (entries.length === 0) continue;
 
-        // Group title with first entry so the title is never orphaned at page bottom
-        groups.push([title, entries[0]]);
+        groups.push({ elements: [title, entries[0]], sectionId: def.id });
 
-        // Remaining entries are individual groups
         for (let i = 1; i < entries.length; i++) {
-            groups.push([entries[i]]);
+            groups.push({ elements: [entries[i]], sectionId: def.id });
         }
     }
 
@@ -1387,6 +1483,9 @@ function buildSectionSidebar() {
     const sidebar = document.createElement('div');
     sidebar.className = 'section-sidebar';
 
+    // Page control UI
+    sidebar.appendChild(buildPageControlUI('sidebar'));
+
     const title = document.createElement('div');
     title.className = 'sidebar-title';
     title.textContent = 'Section Order';
@@ -1428,10 +1527,38 @@ function buildSectionSidebar() {
 
         item.appendChild(handle);
         item.appendChild(label);
+
+        // Page select dropdown (manual mode)
+        if (pageLayoutMode === 'manual' && targetPageCount !== null) {
+            const select = document.createElement('select');
+            select.className = 'sidebar-page-select';
+            for (let p = 1; p <= targetPageCount; p++) {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = 'P' + p;
+                select.appendChild(opt);
+            }
+            select.value = sectionPageAssignments[def.id] || 1;
+            select.addEventListener('change', () => {
+                sectionPageAssignments[def.id] = parseInt(select.value);
+                reRenderWithCurrentOrder();
+            });
+            item.appendChild(select);
+        }
+
         list.appendChild(item);
     });
 
     sidebar.appendChild(list);
+
+    // Overflow warning (after list)
+    const warning = document.createElement('div');
+    warning.className = 'sidebar-overflow-warning';
+    warning.id = 'sidebar-overflow-warning';
+    warning.style.display = 'none';
+    warning.textContent = 'Content overflows target page count.';
+    sidebar.appendChild(warning);
+
     container.appendChild(sidebar);
     container.classList.add('has-sidebar');
 
@@ -1482,6 +1609,7 @@ function initSidebarDragAndDrop(list) {
         });
         sectionOrder = newOrder;
         reRenderWithCurrentOrder();
+        buildMobileReorderSheet();
     });
 }
 
@@ -1495,6 +1623,228 @@ function getDragAfterElement(container, y) {
         }
         return closest;
     }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+// ============================================================
+// Page Control UI (shared between desktop sidebar and mobile sheet)
+// ============================================================
+function buildPageControlUI(prefix) {
+    const wrapper = document.createElement('div');
+    wrapper.className = prefix + '-page-control';
+
+    // Mode toggle: Auto / Manual
+    const modeRow = document.createElement('div');
+    modeRow.className = prefix + '-mode-toggle';
+
+    const autoBtn = document.createElement('button');
+    autoBtn.type = 'button';
+    autoBtn.className = prefix + '-mode-btn' + (pageLayoutMode === 'auto' ? ' active' : '');
+    autoBtn.textContent = 'Auto';
+    autoBtn.addEventListener('click', () => setPageLayoutMode('auto'));
+
+    const manualBtn = document.createElement('button');
+    manualBtn.type = 'button';
+    manualBtn.className = prefix + '-mode-btn' + (pageLayoutMode === 'manual' ? ' active' : '');
+    manualBtn.textContent = 'Manual';
+    manualBtn.addEventListener('click', () => setPageLayoutMode('manual'));
+
+    modeRow.appendChild(autoBtn);
+    modeRow.appendChild(manualBtn);
+    wrapper.appendChild(modeRow);
+
+    // Page count selector (only in manual mode)
+    if (pageLayoutMode === 'manual') {
+        const countRow = document.createElement('div');
+        countRow.className = prefix + '-page-count';
+
+        const countLabel = document.createElement('span');
+        countLabel.className = prefix + '-page-count-label';
+        countLabel.textContent = 'Pages:';
+        countRow.appendChild(countLabel);
+
+        [1, 2, 3].forEach(n => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = prefix + '-page-count-btn' + (targetPageCount === n ? ' active' : '');
+            btn.textContent = n;
+            btn.addEventListener('click', () => setTargetPageCount(n));
+            countRow.appendChild(btn);
+        });
+
+        wrapper.appendChild(countRow);
+    }
+
+    return wrapper;
+}
+
+function setPageLayoutMode(mode) {
+    pageLayoutMode = mode;
+    if (mode === 'manual' && targetPageCount === null) {
+        // Default to current auto page count
+        const currentPages = document.querySelectorAll('#resume-render-target .resume-page').length;
+        targetPageCount = Math.max(1, Math.min(currentPages, 3));
+    }
+    if (mode === 'auto') {
+        sectionPageAssignments = {};
+    }
+    buildSectionSidebar();
+    buildMobileReorderSheet();
+    reRenderWithCurrentOrder();
+}
+
+function setTargetPageCount(n) {
+    targetPageCount = n;
+    // Clamp existing assignments
+    for (const key in sectionPageAssignments) {
+        if (sectionPageAssignments[key] > n) {
+            sectionPageAssignments[key] = n;
+        }
+    }
+    buildSectionSidebar();
+    buildMobileReorderSheet();
+    reRenderWithCurrentOrder();
+}
+
+function updateOverflowWarning(overflowed) {
+    const desktopWarn = document.getElementById('sidebar-overflow-warning');
+    if (desktopWarn) desktopWarn.style.display = overflowed ? 'block' : 'none';
+    const mobileWarn = document.getElementById('mobile-overflow-warning');
+    if (mobileWarn) mobileWarn.style.display = overflowed ? 'block' : 'none';
+}
+
+// ============================================================
+// Mobile Reorder Bottom Sheet
+// ============================================================
+function buildMobileReorderSheet() {
+    const content = document.getElementById('mobile-reorder-content');
+    if (!content) return;
+    content.textContent = '';
+
+    const activeDefs = getActiveSectionDefs();
+    if (activeDefs.length === 0) return;
+
+    // Page control UI (same as sidebar)
+    content.appendChild(buildPageControlUI('mobile-reorder'));
+
+    // Fixed header item
+    const headerItem = document.createElement('div');
+    headerItem.className = 'mobile-reorder-item mobile-reorder-item-fixed';
+    const headerLabel = document.createElement('span');
+    headerLabel.className = 'mobile-reorder-item-label';
+    headerLabel.textContent = 'Header';
+    headerItem.appendChild(headerLabel);
+    content.appendChild(headerItem);
+
+    // Movable section items
+    activeDefs.forEach((def, idx) => {
+        const item = document.createElement('div');
+        item.className = 'mobile-reorder-item';
+        item.dataset.sectionId = def.id;
+        if (def.isCustomEntry) {
+            item.dataset.isCustomEntry = 'true';
+            item.dataset.label = def.label;
+        }
+
+        const upBtn = document.createElement('button');
+        upBtn.type = 'button';
+        upBtn.className = 'mobile-reorder-arrow';
+        upBtn.textContent = '\u25B2';
+        upBtn.disabled = idx === 0;
+        upBtn.addEventListener('click', () => mobileMoveSectionUp(item));
+
+        const downBtn = document.createElement('button');
+        downBtn.type = 'button';
+        downBtn.className = 'mobile-reorder-arrow';
+        downBtn.textContent = '\u25BC';
+        downBtn.disabled = idx === activeDefs.length - 1;
+        downBtn.addEventListener('click', () => mobileMoveSectionDown(item));
+
+        const label = document.createElement('span');
+        label.className = 'mobile-reorder-item-label';
+        label.textContent = def.label;
+
+        item.appendChild(upBtn);
+        item.appendChild(label);
+        item.appendChild(downBtn);
+
+        // Page select (manual mode)
+        if (pageLayoutMode === 'manual' && targetPageCount !== null) {
+            const select = document.createElement('select');
+            select.className = 'mobile-reorder-page-select';
+            for (let p = 1; p <= targetPageCount; p++) {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = 'P' + p;
+                select.appendChild(opt);
+            }
+            select.value = sectionPageAssignments[def.id] || 1;
+            select.addEventListener('change', () => {
+                sectionPageAssignments[def.id] = parseInt(select.value);
+                reRenderWithCurrentOrder();
+            });
+            item.appendChild(select);
+        }
+
+        content.appendChild(item);
+    });
+
+    // Overflow warning
+    const warning = document.createElement('div');
+    warning.className = 'mobile-reorder-overflow-warning';
+    warning.id = 'mobile-overflow-warning';
+    warning.style.display = 'none';
+    warning.textContent = 'Content overflows target page count.';
+    content.appendChild(warning);
+}
+
+function mobileMoveSectionUp(item) {
+    const prev = item.previousElementSibling;
+    if (prev && !prev.classList.contains('mobile-reorder-item-fixed') &&
+        !prev.classList.contains('mobile-reorder-page-control')) {
+        item.parentNode.insertBefore(item, prev);
+        applyMobileReorder();
+    }
+}
+
+function mobileMoveSectionDown(item) {
+    const next = item.nextElementSibling;
+    if (next && next.classList.contains('mobile-reorder-item')) {
+        item.parentNode.insertBefore(next, item);
+        applyMobileReorder();
+    }
+}
+
+function applyMobileReorder() {
+    const content = document.getElementById('mobile-reorder-content');
+    const items = content.querySelectorAll('.mobile-reorder-item:not(.mobile-reorder-item-fixed)');
+
+    const newOrder = [];
+    items.forEach(item => {
+        const id = item.dataset.sectionId;
+        if (item.dataset.isCustomEntry === 'true') {
+            newOrder.push({
+                id: id,
+                label: item.dataset.label,
+                isCustomEntry: true,
+            });
+        } else {
+            const def = DEFAULT_SECTION_DEFS.find(d => d.id === id);
+            if (def) newOrder.push(def);
+        }
+    });
+
+    sectionOrder = newOrder;
+    reRenderWithCurrentOrder();
+    buildSectionSidebar();
+
+    // Update button disabled states
+    const allItems = Array.from(items);
+    allItems.forEach((item, idx) => {
+        const upBtn = item.querySelector('.mobile-reorder-arrow:first-child');
+        const downBtn = item.querySelector('.mobile-reorder-arrow:last-of-type');
+        if (upBtn) upBtn.disabled = idx === 0;
+        if (downBtn) downBtn.disabled = idx === allItems.length - 1;
+    });
 }
 
 // ============================================================
