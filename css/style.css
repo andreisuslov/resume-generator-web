@@ -865,6 +865,7 @@ body {
     padding-left: 0.55in;
     padding-right: 0.55in;
     box-sizing: border-box;
+    zoom: var(--text-scale, 1);
 }
 
 /* Each paginated resume page */
@@ -886,6 +887,7 @@ body {
     height: 100%;
     box-sizing: border-box;
     overflow: hidden;
+    zoom: var(--text-scale, 1);
 }
 
 .rp-header {
@@ -1460,6 +1462,72 @@ body {
     font-size: 12px;
     font-weight: 500;
     margin-top: 8px;
+}
+
+/* Page Dividers */
+.sidebar-page-divider,
+.mobile-reorder-page-divider {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 10px 10px 4px;
+    margin-top: 4px;
+    border-top: 1px solid var(--border);
+}
+
+.sidebar-page-divider:first-child,
+.mobile-reorder-page-divider:first-child {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 4px;
+}
+
+/* Text Shrink Controls */
+.sidebar-shrink-control,
+.mobile-reorder-shrink-control {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.sidebar-shrink-label,
+.mobile-reorder-shrink-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-right: 2px;
+}
+
+.sidebar-shrink-btn,
+.mobile-reorder-shrink-btn {
+    padding: 4px 8px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--card-bg);
+    font-size: 11px;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.sidebar-shrink-btn:hover,
+.mobile-reorder-shrink-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.sidebar-shrink-value,
+.mobile-reorder-shrink-value {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 32px;
+    text-align: center;
 }
 
 /* ============================================================
