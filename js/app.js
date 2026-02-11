@@ -1257,25 +1257,57 @@ function paginateAutomatic(groups, stagingRect, USABLE_HEIGHT, renderTarget) {
 }
 
 function paginateManual(groups, stagingRect, USABLE_HEIGHT, renderTarget) {
-    // Initialize empty page buckets
+    // Initialize empty page buckets with height tracking
     const pageBuckets = [];
+    const pageHeights = [];
     for (let i = 0; i < targetPageCount; i++) {
         pageBuckets.push([]);
+        pageHeights.push(0);
     }
 
-    // Assign each group to its target page
+    // Separate explicitly assigned groups from unassigned ones
+    const assignedGroups = [];
+    const unassignedGroups = [];
+
     for (const group of groups) {
-        let targetPage = 0;
         if (group.sectionId === 'rp-header') {
-            targetPage = 0;
+            // Header always goes to page 1
+            assignedGroups.push({ group, targetPage: 0 });
         } else if (sectionPageAssignments[group.sectionId] !== undefined) {
-            targetPage = sectionPageAssignments[group.sectionId] - 1;
+            const tp = Math.max(0, Math.min(sectionPageAssignments[group.sectionId] - 1, pageBuckets.length - 1));
+            assignedGroups.push({ group, targetPage: tp });
+        } else {
+            unassignedGroups.push(group);
         }
-        targetPage = Math.max(0, Math.min(targetPage, pageBuckets.length - 1));
-        pageBuckets[targetPage].push(group);
     }
 
-    // Check height constraints — if a page overflows, push to next page
+    // Place explicitly assigned groups first and track their heights
+    for (const { group, targetPage } of assignedGroups) {
+        pageBuckets[targetPage].push(group);
+        pageHeights[targetPage] += measureGroupHeight(group, stagingRect);
+    }
+
+    // Auto-distribute unassigned groups using greedy allocation
+    for (const group of unassignedGroups) {
+        const height = measureGroupHeight(group, stagingRect);
+        // Find first page with room
+        let placed = false;
+        for (let p = 0; p < pageBuckets.length; p++) {
+            if (pageHeights[p] + height <= USABLE_HEIGHT || pageBuckets[p].length === 0) {
+                pageBuckets[p].push(group);
+                pageHeights[p] += height;
+                placed = true;
+                break;
+            }
+        }
+        // If no page has room, add to the last page
+        if (!placed) {
+            pageBuckets[pageBuckets.length - 1].push(group);
+            pageHeights[pageBuckets.length - 1] += height;
+        }
+    }
+
+    // Check height constraints — if a page overflows, push excess to next page
     const finalPages = [];
 
     for (let p = 0; p < pageBuckets.length; p++) {
@@ -1798,25 +1830,23 @@ function adjustTextSize(delta) {
 
 function setPageLayoutMode(mode) {
     pageLayoutMode = mode;
-    if (mode === 'manual' && targetPageCount === null) {
+    if (mode === 'manual') {
+        // Always recalculate from current state when entering manual mode
         const currentPages = document.querySelectorAll('#resume-render-target .resume-page').length;
         targetPageCount = Math.max(1, Math.min(currentPages, 3));
-        // Copy computed assignments as starting point
         sectionPageAssignments = { ...computedPageAssignments };
     }
     if (mode === 'auto') {
         sectionPageAssignments = {};
+        targetPageCount = null;
     }
     reRenderWithCurrentOrder();
 }
 
 function setTargetPageCount(n) {
     targetPageCount = n;
-    for (const key in sectionPageAssignments) {
-        if (sectionPageAssignments[key] > n) {
-            sectionPageAssignments[key] = n;
-        }
-    }
+    // Clear manual assignments so sections get redistributed for the new page count
+    sectionPageAssignments = {};
     reRenderWithCurrentOrder();
 }
 
