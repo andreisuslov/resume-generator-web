@@ -1252,6 +1252,12 @@ body {
         display: block;
         max-width: 900px;
     }
+    .mobile-reorder-sheet {
+        display: block;
+    }
+    #resume-preview-wrapper {
+        padding-bottom: 60px;
+    }
 }
 
 @media (max-width: 640px) {
@@ -1326,5 +1332,244 @@ body {
 
     #diff-container {
         flex-direction: column;
+    }
+}
+
+/* ============================================================
+   Font Consistency (Phase 2)
+   ============================================================ */
+.resume-page, #resume-staging-inner {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+.resume-preview-scaler {
+    will-change: transform;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+}
+
+/* ============================================================
+   Page Control UI (shared between sidebar and mobile sheet)
+   ============================================================ */
+.sidebar-page-control,
+.mobile-reorder-page-control {
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.sidebar-mode-toggle,
+.mobile-reorder-mode-toggle {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.sidebar-mode-btn,
+.mobile-reorder-mode-btn {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--card-bg);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.sidebar-mode-btn:hover,
+.mobile-reorder-mode-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.sidebar-mode-btn.active,
+.mobile-reorder-mode-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+.sidebar-page-count,
+.mobile-reorder-page-count {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sidebar-page-count-label,
+.mobile-reorder-page-count-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.sidebar-page-count-btn,
+.mobile-reorder-page-count-btn {
+    width: 32px;
+    height: 32px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--card-bg);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.sidebar-page-count-btn:hover,
+.mobile-reorder-page-count-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.sidebar-page-count-btn.active,
+.mobile-reorder-page-count-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+.sidebar-page-select,
+.mobile-reorder-page-select {
+    width: 44px;
+    padding: 2px 4px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: inherit;
+    color: var(--text);
+    background: var(--card-bg);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.sidebar-overflow-warning,
+.mobile-reorder-overflow-warning {
+    background: #fef9c3;
+    border: 1px solid #fde68a;
+    border-radius: var(--radius-sm);
+    color: #92400e;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 8px;
+}
+
+/* ============================================================
+   Mobile Reorder Bottom Sheet (Phase 3)
+   ============================================================ */
+.mobile-reorder-sheet {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--card-bg);
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+    z-index: 100;
+    transform: translateY(calc(100% - 52px));
+    transition: transform 0.3s ease;
+}
+
+.mobile-reorder-sheet.expanded {
+    transform: translateY(0);
+}
+
+.mobile-reorder-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.mobile-reorder-handle-bar {
+    width: 36px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    position: absolute;
+    top: 8px;
+}
+
+.mobile-reorder-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.mobile-reorder-content {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: 0 16px 16px;
+}
+
+.mobile-reorder-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+}
+
+.mobile-reorder-item-fixed {
+    color: var(--text-muted);
+    padding-left: 40px;
+}
+
+.mobile-reorder-item-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mobile-reorder-arrow {
+    width: 32px;
+    height: 32px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--card-bg);
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.15s;
+    font-family: inherit;
+}
+
+.mobile-reorder-arrow:hover:not(:disabled) {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
+.mobile-reorder-arrow:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Print: hide mobile sheet */
+@media print {
+    .mobile-reorder-sheet {
+        display: none !important;
     }
 }
